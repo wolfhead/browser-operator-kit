@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "id": "cycle-operations",
+  "browserBundleIdentifier": "com.google.Chrome",
+  "operations": {
+    "cycle.a": {
+      "description": "Cycle A.",
+      "parameters": {},
+      "steps": [{ "operation": "cycle.b", "parameters": {} }]
+    },
+    "cycle.b": {
+      "description": "Cycle B.",
+      "parameters": {},
+      "steps": [{ "operation": "cycle.a", "parameters": {} }]
+    }
+  }
+}

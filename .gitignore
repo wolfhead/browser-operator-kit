@@ -1,0 +1,9 @@
+node_modules/
+dist/
+output/
+.benchmarks/
+.pytest_cache/
+native-helper/macos/.build/
+__pycache__/
+*.pyc
+.DS_Store

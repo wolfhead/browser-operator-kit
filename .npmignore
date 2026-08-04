@@ -1,0 +1,5 @@
+dist/
+output/
+native-helper/macos/.build/**
+python/browser_operator_kit/__pycache__/**
+python/browser_operator_kit/*.pyc

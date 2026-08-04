@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "local-eye-hand-acceptance",
+  "label": "本地 Eye / Hand 原子命令验收",
+  "browserBundleIdentifier": "com.google.chrome.for.testing",
+  "commands": [
+    {
+      "id": "paste-keywords",
+      "expectedPage": "demo.page",
+      "target": { "scope": "fields", "name": "search.keywords" },
+      "preconditions": [
+        { "scope": "fields", "name": "search.keywords", "path": "read.value", "equals": "" }
+      ],
+      "action": { "type": "paste", "text": "alpha beta" },
+      "postconditions": [
+        { "scope": "fields", "name": "search.keywords", "path": "read.value", "equals": "alpha beta" }
+      ]
+    },
+    {
+      "id": "apply-keywords",
+      "expectedPage": "demo.page",
+      "target": { "scope": "controls", "name": "search.apply" },
+      "preconditions": [
+        { "scope": "fields", "name": "search.keywords", "path": "read.value", "equals": "alpha beta" }
+      ],
+      "action": { "type": "click" },
+      "postconditions": [
+        { "scope": "values", "name": "search.result", "path": "read.text", "equals": "已应用：alpha beta" }
+      ]
+    },
+    {
+      "id": "scroll-details-to-footer",
+      "expectedPage": "demo.page",
+      "target": { "scope": "scrollables", "name": "details.viewport" },
+      "preconditions": [
+        { "scope": "scrollables", "name": "details.viewport", "path": "footerVisible", "equals": false }
+      ],
+      "action": {
+        "type": "scrollUntil",
+        "deltaY": "recommended",
+        "maxAttempts": 6,
+        "until": { "scope": "scrollables", "name": "details.viewport", "path": "footerVisible", "equals": true }
+      },
+      "postconditions": [
+        { "scope": "scrollables", "name": "details.viewport", "path": "footerVisible", "equals": true },
+        { "scope": "scrollables", "name": "details.viewport", "path": "canScrollDown", "equals": false }
+      ]
+    }
+  ]
+}

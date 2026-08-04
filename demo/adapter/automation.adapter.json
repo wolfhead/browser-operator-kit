@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "browser-operator-kit-demo",
+  "displayName": "Browser Operator Kit Demo",
+  "version": "1.0.0",
+  "extension": {
+    "descriptors": ["descriptors/demo-page.json"],
+    "hostPermissions": ["http://127.0.0.1:8765/*"],
+    "bridgeUrls": ["ws://127.0.0.1:38494"]
+  },
+  "operator": {
+    "operationDirectories": ["operations"],
+    "allowedOpenUrls": ["http://127.0.0.1:8765/"]
+  }
+}

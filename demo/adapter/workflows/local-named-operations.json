@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "local-named-operation-acceptance",
+  "label": "本地配置化命名操作验收",
+  "operations": [
+    {
+      "name": "demo.search.run",
+      "parameters": {
+        "request": {
+          "keywords": "alpha beta",
+          "resultText": "已应用：alpha beta"
+        }
+      }
+    },
+    {
+      "name": "demo.details.scrollToEnd",
+      "parameters": {}
+    }
+  ]
+}

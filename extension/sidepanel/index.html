@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Web Automation Eye</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">WEB AUTOMATION EYE</p>
+        <h1>自动化状态板</h1>
+        <p class="intro">插件只读取页面并展示状态；所有鼠标、键盘与滚轮操作由独立 Hand 执行。</p>
+      </header>
+
+      <section id="automation-banner" class="automation-banner status-idle" aria-label="自动化运行状态">
+        <span class="automation-signal" aria-hidden="true"></span>
+        <div class="automation-copy">
+          <div class="automation-title-row">
+            <strong id="automation-status" role="status" aria-live="polite">尚未开始</strong>
+            <time id="automation-time">未运行</time>
+          </div>
+          <p id="automation-step">当前没有自动化任务。</p>
+        </div>
+      </section>
+
+      <section class="safety" aria-label="职责边界">
+        <span class="safety-dot" aria-hidden="true"></span>
+        <div>
+          <strong>Eye 只读</strong>
+          <p>描述文件负责识别页面、命名控件、读取值与滚动状态。此面板不点击、不输入、不滚动。</p>
+          <p id="bridge-state">正在检查本地 Eye / Operator 桥。</p>
+        </div>
+      </section>
+
+      <section class="capture-summary" aria-labelledby="page-heading">
+        <div class="section-heading">
+          <h2 id="page-heading">当前页面</h2>
+          <span id="observation-age" class="capture-state">尚未观察</span>
+        </div>
+        <dl class="state-grid">
+          <div><dt>状态</dt><dd id="page-state">—</dd></div>
+          <div><dt>描述文件</dt><dd id="descriptor-state">—</dd></div>
+          <div><dt>窗口</dt><dd id="window-state">—</dd></div>
+          <div><dt>视口</dt><dd id="viewport-state">—</dd></div>
+        </dl>
+        <p id="page-url" class="page-url">等待 Codex 或面板观察当前页。</p>
+      </section>
+
+      <section class="activity" aria-labelledby="target-heading">
+        <div class="section-heading">
+          <h2 id="target-heading">已注册目标</h2>
+          <span id="target-count" class="count">0</span>
+        </div>
+        <ol id="target-list" class="log-list">
+          <li class="log-empty">当前没有目标信息。</li>
+        </ol>
+      </section>
+
+      <section class="activity" aria-labelledby="activity-heading">
+        <div class="section-heading">
+          <h2 id="activity-heading">运行日志</h2>
+          <span class="activity-order">最新在前</span>
+        </div>
+        <ol id="log-list" class="log-list" aria-live="polite">
+          <li class="log-empty">尚无运行记录。</li>
+        </ol>
+      </section>
+    </main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

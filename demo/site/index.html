@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Browser Operator Kit Demo</title>
+    <style>
+      :root { font-family: system-ui, sans-serif; color: #15342f; background: #edf6f3; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 40px; }
+      main { width: min(760px, 100%); margin: auto; padding: 28px; border-radius: 20px; background: white; box-shadow: 0 18px 60px #164c3f1f; }
+      h1 { margin-top: 0; }
+      .search { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+      input, button { min-height: 46px; border-radius: 10px; font: inherit; }
+      input { padding: 0 14px; border: 1px solid #adc9c2; }
+      button { padding: 0 20px; border: 0; color: white; background: #008f82; cursor: pointer; }
+      #search-result { min-height: 24px; margin: 14px 0 22px; color: #006f65; font-weight: 700; }
+      #details-scroll { height: 320px; overflow: auto; border: 1px solid #cfe0dc; border-radius: 12px; padding: 18px; background: #fbfdfc; }
+      .block { min-height: 260px; margin-bottom: 18px; padding: 16px; border-radius: 10px; background: #eff7f5; }
+      #details-footer { padding: 18px; border: 1px solid #eccb8c; border-radius: 10px; color: #71511b; background: #fff8e8; }
+    </style>
+  </head>
+  <body data-automation-page="eye-hand-fixture">
+    <main>
+      <p>WEB OPERATOR KIT DEMO</p>
+      <h1>Eye / Hand 协调测试</h1>
+      <div class="search">
+        <input id="keywords" placeholder="输入测试关键词" autocomplete="off">
+        <button id="apply-search" type="button">应用</button>
+      </div>
+      <div id="search-result" aria-live="polite">尚未应用关键词</div>
+      <div id="details-scroll" tabindex="0">
+        <section class="block"><h2>区块一</h2><p>用于验证滚动目标和坐标回传。</p></section>
+        <section class="block"><h2>区块二</h2><p>滚动过程应由 Hand 发送真实滚轮事件。</p></section>
+        <section class="block"><h2>区块三</h2><p>Eye 应在每次滚动后重新读取剩余距离。</p></section>
+        <footer id="details-footer">本地验收 footer：Eye 识别到这里即说明滚动覆盖完整。</footer>
+      </div>
+    </main>
+    <script>
+      document.querySelector("#apply-search").addEventListener("click", () => {
+        const keywords = document.querySelector("#keywords").value.trim();
+        document.querySelector("#search-result").textContent = keywords
+          ? `已应用：${keywords}`
+          : "关键词为空";
+      });
+    </script>
+  </body>
+</html>

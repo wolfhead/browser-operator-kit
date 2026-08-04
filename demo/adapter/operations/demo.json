@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "id": "web-operator-demo-operations",
+  "browserBundleIdentifier": "com.google.chrome.for.testing",
+  "operations": {
+    "demo.search.setKeywords": {
+      "description": "Replace the local fixture search keywords and verify the exact value.",
+      "parameters": {
+        "keywords": { "type": "string", "minLength": 1, "maxLength": 240 }
+      },
+      "command": {
+        "id": "set-search-keywords",
+        "expectedPage": "demo.page",
+        "foregroundPolicy": { "activate": "ifNeeded", "restore": "previousUnlessHumanTakeover" },
+        "target": { "scope": "fields", "name": "search.keywords" },
+        "action": { "type": "paste", "text": "{{keywords}}" },
+        "postconditions": [
+          { "scope": "fields", "name": "search.keywords", "path": "read.value", "equals": "{{keywords}}" }
+        ]
+      }
+    },
+    "demo.search.submit": {
+      "description": "Click Apply after verifying the local search keywords, then verify the result text.",
+      "parameters": {
+        "keywords": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "resultText": { "type": "string", "minLength": 1, "maxLength": 300 }
+      },
+      "command": {
+        "id": "submit-search",
+        "expectedPage": "demo.page",
+        "foregroundPolicy": { "activate": "ifNeeded", "restore": "previousUnlessHumanTakeover" },
+        "target": { "scope": "controls", "name": "search.apply" },
+        "preconditions": [
+          { "scope": "fields", "name": "search.keywords", "path": "read.value", "equals": "{{keywords}}" }
+        ],
+        "action": { "type": "click" },
+        "postconditions": [
+          { "scope": "values", "name": "search.result", "path": "read.text", "equals": "{{resultText}}" }
+        ]
+      }
+    },
+    "demo.details.scrollToEnd": {
+      "description": "Scroll the local details viewport until its registered footer is visible and the exact bottom is reached.",
+      "parameters": {},
+      "command": {
+        "id": "scroll-details-to-end",
+        "expectedPage": "demo.page",
+        "foregroundPolicy": { "activate": "ifNeeded", "restore": "previousUnlessHumanTakeover" },
+        "target": { "scope": "scrollables", "name": "details.viewport" },
+        "action": {
+          "type": "scrollUntil",
+          "deltaY": "recommended",
+          "maxAttempts": 6,
+          "until": { "scope": "scrollables", "name": "details.viewport", "path": "footerVisible", "equals": true }
+        },
+        "postconditions": [
+          { "scope": "scrollables", "name": "details.viewport", "path": "footerVisible", "equals": true },
+          { "scope": "scrollables", "name": "details.viewport", "path": "canScrollDown", "equals": false }
+        ]
+      }
+    },
+    "demo.search.run": {
+      "description": "Set and submit a nested local search request through registered operations.",
+      "parameters": {
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keywords": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "resultText": { "type": "string", "minLength": 1, "maxLength": 300 }
+          }
+        }
+      },
+      "steps": [
+        {
+          "operation": "demo.search.setKeywords",
+          "parameters": { "keywords": "{{request.keywords}}" }
+        },
+        {
+          "operation": "demo.search.submit",
+          "parameters": {
+            "keywords": "{{request.keywords}}",
+            "resultText": "{{request.resultText}}"
+          }
+        }
+      ]
+    },
+    "demo.search.setKeywordList": {
+      "description": "Expand an array into repeated registered keyword operations.",
+      "parameters": {
+        "keywords": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 1, "maxLength": 240 }
+        }
+      },
+      "steps": [
+        {
+          "forEach": "{{keywords}}",
+          "as": "keyword",
+          "steps": [
+            {
+              "operation": "demo.search.setKeywords",
+              "parameters": { "keywords": "{{keyword.value}}" }
+            }
+          ]
+        }
+      ]
+    },
+    "demo.search.setKeywordMap": {
+      "description": "Expand object values into repeated registered keyword operations.",
+      "parameters": {
+        "keywords": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 10,
+          "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 240 }
+        }
+      },
+      "steps": [
+        {
+          "forEach": "{{keywords}}",
+          "as": "keyword",
+          "steps": [
+            {
+              "operation": "demo.search.setKeywords",
+              "parameters": { "keywords": "{{keyword.value}}" }
+            }
+          ]
+        }
+      ]
+    },
+    "demo.state.observe": {
+      "description": "Read the current registered local page state without a Hand action.",
+      "parameters": {},
+      "reader": {
+        "handler": "eye.observe",
+        "input": {}
+      }
+    },
+    "demo.search.runAndObserve": {
+      "description": "Run a local search and then return a registered Eye observation.",
+      "parameters": {
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "keywords": { "type": "string", "minLength": 1, "maxLength": 240 },
+            "resultText": { "type": "string", "minLength": 1, "maxLength": 300 }
+          }
+        }
+      },
+      "steps": [
+        {
+          "operation": "demo.search.run",
+          "parameters": { "request": "{{request}}" }
+        },
+        {
+          "operation": "demo.state.observe",
+          "parameters": {}
+        }
+      ]
+    }
+  }
+}

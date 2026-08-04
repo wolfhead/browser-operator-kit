@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://browser-operator-kit.local/eye-descriptor.schema.json",
+  "title": "Web Eye site descriptor",
+  "type": "object",
+  "required": ["schemaVersion", "id", "version", "match", "pages", "fields", "controls", "values", "collections", "scrollables"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "match": {
+      "type": "object",
+      "required": ["origins"],
+      "properties": {
+        "origins": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "pathPrefixes": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "pages": { "type": "array" },
+    "fields": { "type": "array" },
+    "controls": { "type": "array" },
+    "values": { "type": "array" },
+    "collections": { "type": "array" },
+    "scrollables": { "type": "array" }
+  },
+  "additionalProperties": false
+}

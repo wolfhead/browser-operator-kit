@@ -1,0 +1,400 @@
+:root {
+  color-scheme: light;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: #18332f;
+  background: #f4f8f7;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  gap: 18px;
+  padding: 22px 18px 32px;
+}
+
+.hero {
+  display: grid;
+  gap: 6px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #008f82;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 15px;
+}
+
+h3 {
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.intro {
+  margin-bottom: 0;
+  color: #5c716d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.automation-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid #cadbd7;
+  border-radius: 14px;
+  background: #fbfdfc;
+  box-shadow: 0 8px 24px rgb(20 57 50 / 8%);
+}
+
+.automation-signal {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #879692;
+}
+
+.automation-banner.status-running .automation-signal {
+  background: #008f82;
+}
+
+.automation-banner.status-running .automation-signal::after {
+  position: absolute;
+  inset: -5px;
+  border: 1px solid #008f82;
+  border-radius: inherit;
+  content: "";
+  animation: automation-pulse 1.8s cubic-bezier(.16, 1, .3, 1) infinite;
+}
+
+.automation-banner.status-waiting .automation-signal {
+  background: #c47b10;
+}
+
+.automation-banner.status-completed .automation-signal {
+  background: #177465;
+}
+
+.automation-banner.status-failed .automation-signal,
+.automation-banner.status-cancelled .automation-signal {
+  background: #b23b37;
+}
+
+.automation-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.automation-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.automation-title-row strong {
+  color: #18332f;
+  font-size: 13px;
+}
+
+.automation-title-row time {
+  flex: 0 0 auto;
+  color: #748581;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.automation-copy p {
+  margin: 4px 0 0;
+  color: #536a65;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+@keyframes automation-pulse {
+  from { opacity: .8; transform: scale(.55); }
+  to { opacity: 0; transform: scale(1.25); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .automation-banner.status-running .automation-signal::after {
+    animation: none;
+  }
+}
+
+.safety {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #bce4da;
+  border-radius: 12px;
+  background: #eaf8f4;
+}
+
+.safety-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #00a88f;
+  box-shadow: 0 0 0 4px rgb(0 168 143 / 12%);
+}
+
+.safety p {
+  margin: 3px 0 0;
+  color: #4a6862;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.controls button,
+.open-button {
+  min-height: 38px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.controls button:disabled,
+.open-button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.primary {
+  border: 1px solid #008f82;
+  color: white;
+  background: #008f82;
+}
+
+.secondary,
+.open-button {
+  border: 1px solid #b9cbc7;
+  color: #24443e;
+  background: white;
+}
+
+.network-start {
+  border-color: #78bdb3;
+  color: #006f65;
+  background: #effaf7;
+}
+
+.capture-summary {
+  padding: 12px;
+  border: 1px solid #d5e4e1;
+  border-radius: 12px;
+  background: white;
+}
+
+.capture-summary .section-heading {
+  margin-bottom: 5px;
+}
+
+.capture-summary p {
+  margin-bottom: 0;
+  color: #637874;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.state-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 0;
+}
+
+.state-grid div {
+  min-width: 0;
+}
+
+.state-grid dt {
+  color: #7b8d89;
+  font-size: 10px;
+}
+
+.state-grid dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: #294a44;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.page-url {
+  margin-top: 10px !important;
+  overflow-wrap: anywhere;
+}
+
+.capture-state {
+  color: #6a7c79;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.capture-state.active {
+  color: #9b6511;
+}
+
+.capture-state.complete {
+  color: #176e63;
+}
+
+.status {
+  min-height: 18px;
+  margin-bottom: 0;
+  color: #5c716d;
+  font-size: 12px;
+}
+
+.status.error {
+  color: #b23b37;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.count {
+  display: inline-grid;
+  min-width: 24px;
+  min-height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  color: #176e63;
+  background: #deeee9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.empty {
+  border: 1px solid #dce7e4;
+  border-radius: 12px;
+  background: white;
+}
+
+.open-button {
+  min-width: 72px;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #007f73;
+  font-size: 12px;
+}
+
+.empty {
+  padding: 13px;
+  color: #687b77;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.activity {
+  min-width: 0;
+}
+
+.activity-order {
+  color: #6a7c79;
+  font-size: 11px;
+}
+
+.log-list {
+  display: grid;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid #dce7e4;
+  border-radius: 12px;
+  background: white;
+  list-style: none;
+}
+
+.log-item,
+.log-empty {
+  min-width: 0;
+  padding: 9px 11px;
+  color: #435c57;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.log-item {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.log-item + .log-item,
+.log-empty + .log-item {
+  border-top: 1px solid #edf2f1;
+}
+
+.log-time {
+  color: #7b8d89;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-item.error .log-message {
+  color: #b23b37;
+}
+
+.log-item.success .log-message {
+  color: #176e63;
+}
+
+.log-empty {
+  margin: 0;
+  color: #7b8d89;
+}

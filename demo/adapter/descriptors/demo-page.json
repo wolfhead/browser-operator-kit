@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "id": "web-operator-demo",
+  "version": "1.0.0",
+  "match": {
+    "origins": ["http://127.0.0.1:8765", "http://localhost:8765"],
+    "pathPrefixes": ["/"]
+  },
+  "pages": [
+    {
+      "name": "demo.page",
+      "priority": 100,
+      "all": [
+        { "kind": "exists", "selector": "[data-automation-page='eye-hand-fixture']" }
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "name": "search.keywords",
+      "locator": { "kind": "css", "selector": "#keywords" },
+      "read": ["value", "placeholder"]
+    }
+  ],
+  "controls": [
+    {
+      "name": "search.apply",
+      "locator": { "kind": "css", "selector": "#apply-search" },
+      "read": ["text", "disabled"]
+    }
+  ],
+  "values": [
+    {
+      "name": "search.result",
+      "locator": { "kind": "css", "selector": "#search-result" },
+      "read": ["text"]
+    },
+    {
+      "name": "details.footer",
+      "locator": { "kind": "css", "selector": "#details-footer" },
+      "read": ["text"]
+    }
+  ],
+  "collections": [],
+  "scrollables": [
+    {
+      "name": "details.viewport",
+      "locator": { "kind": "css", "selector": "#details-scroll" },
+      "footer": { "kind": "css", "selector": "#details-footer" },
+      "overlapRatio": 0.18
+    }
+  ]
+}
