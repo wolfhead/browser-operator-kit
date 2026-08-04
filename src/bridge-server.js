@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
+import { loadAdapterRegistration, validateAdapterRegistration } from "./adapter-loader.js";
 
 export const BRIDGE_PROTOCOL_VERSION = 1;
 export const DEFAULT_BRIDGE_HOST = "127.0.0.1";
@@ -11,6 +12,8 @@ export class BridgeServer {
     port = DEFAULT_BRIDGE_PORT,
     requestTimeoutMs = 45_000,
     extensionRequestHandler = null,
+    adapter = null,
+    adapterPath = process.env.WEB_AUTOMATION_ADAPTER_PATH || null,
     logger = () => {}
   } = {}) {
     if (host !== DEFAULT_BRIDGE_HOST) {
@@ -21,11 +24,15 @@ export class BridgeServer {
     this.port = port;
     this.requestTimeoutMs = requestTimeoutMs;
     this.extensionRequestHandler = extensionRequestHandler;
+    this.adapter = adapter;
+    this.adapterPath = adapterPath;
     this.logger = logger;
     this.server = null;
     this.socket = null;
     this.extensionOrigin = null;
     this.connectedAt = null;
+    this.ready = false;
+    this.adapterStatus = null;
     this.pending = new Map();
     this.connectionWaiters = new Set();
     this.heartbeat = null;
@@ -34,6 +41,12 @@ export class BridgeServer {
   async start() {
     if (this.server) {
       return this.address();
+    }
+
+    if (!this.adapter && this.adapterPath) {
+      this.adapter = await loadAdapterRegistration(this.adapterPath);
+    } else if (this.adapter) {
+      validateAdapterRegistration(this.adapter);
     }
 
     this.server = new WebSocketServer({
@@ -82,8 +95,11 @@ export class BridgeServer {
   status() {
     return {
       connected: this.socket?.readyState === WebSocket.OPEN,
+      ready: this.ready,
       extensionOrigin: this.extensionOrigin,
       connectedAt: this.connectedAt,
+      adapter: this.adapter ? { id: this.adapter.id, displayName: this.adapter.displayName, version: this.adapter.version } : null,
+      adapterStatus: this.adapterStatus,
       ...this.address()
     };
   }
@@ -91,6 +107,9 @@ export class BridgeServer {
   async request(command, params = {}, timeoutMs = this.requestTimeoutMs) {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("Chrome extension is not connected to the local automation bridge.");
+    }
+    if (this.adapter && !this.ready) {
+      throw new Error("Chrome extension is connected but the adapter registration is not ready.");
     }
 
     const id = randomUUID();
@@ -123,7 +142,7 @@ export class BridgeServer {
   }
 
   async waitForConnection(timeoutMs = 15_000) {
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    if (this.socket?.readyState === WebSocket.OPEN && (!this.adapter || this.ready)) {
       return this.status();
     }
     return await new Promise((resolve, reject) => {
@@ -157,6 +176,10 @@ export class BridgeServer {
     this.rejectConnectionWaiters(new Error("Automation bridge stopped."));
     this.socket?.close(1001, "Bridge stopped");
     this.socket = null;
+    this.extensionOrigin = null;
+    this.connectedAt = null;
+    this.ready = false;
+    this.adapterStatus = null;
 
     if (this.server) {
       await new Promise((resolve) => this.server.close(resolve));
@@ -173,9 +196,9 @@ export class BridgeServer {
     this.socket = socket;
     this.extensionOrigin = origin;
     this.connectedAt = new Date().toISOString();
-    for (const waiter of this.connectionWaiters) {
-      waiter.resolve();
-    }
+    this.ready = !this.adapter;
+    this.adapterStatus = null;
+    if (this.ready) this.resolveConnectionWaiters();
     socket.isAlive = true;
     socket.on("pong", () => {
       socket.isAlive = true;
@@ -193,9 +216,14 @@ export class BridgeServer {
     });
     socket.send(JSON.stringify({
       type: "bridge.hello",
-      protocolVersion: BRIDGE_PROTOCOL_VERSION
+      protocolVersion: BRIDGE_PROTOCOL_VERSION,
+      adapter: this.adapter
     }));
-    this.logger("info", "extension_connected", { origin });
+    this.logger("info", "extension_connected", {
+      origin,
+      adapterId: this.adapter?.id ?? null,
+      adapterRegistrationPending: Boolean(this.adapter)
+    });
   }
 
   detachSocket(socket) {
@@ -205,6 +233,8 @@ export class BridgeServer {
     this.socket = null;
     this.extensionOrigin = null;
     this.connectedAt = null;
+    this.ready = false;
+    this.adapterStatus = null;
     this.rejectPending(new Error("Chrome extension disconnected."));
     this.logger("info", "extension_disconnected", {});
   }
@@ -215,6 +245,30 @@ export class BridgeServer {
       message = JSON.parse(raw.toString());
     } catch {
       this.logger("warn", "bridge_invalid_json", {});
+      return;
+    }
+
+    if (
+      message?.type === "bridge.ready" &&
+      message.protocolVersion === BRIDGE_PROTOCOL_VERSION
+    ) {
+      if (message.ok === false) {
+        const error = new Error(message.error || "Extension rejected the adapter registration.");
+        this.rejectConnectionWaiters(error);
+        this.logger("error", "extension_adapter_rejected", {
+          adapterId: this.adapter?.id ?? null,
+          message: error.message
+        });
+        this.socket?.close(1008, "Adapter registration rejected");
+        return;
+      }
+      this.ready = true;
+      this.adapterStatus = message.adapterStatus ?? null;
+      this.resolveConnectionWaiters();
+      this.logger("info", "extension_ready", {
+        adapterId: this.adapter?.id ?? null,
+        missingHostPermissions: this.adapterStatus?.missingHostPermissions ?? []
+      });
       return;
     }
 
@@ -319,6 +373,10 @@ export class BridgeServer {
       pending.reject(error);
     }
     this.pending.clear();
+  }
+
+  resolveConnectionWaiters() {
+    for (const waiter of this.connectionWaiters) waiter.resolve();
   }
 
 

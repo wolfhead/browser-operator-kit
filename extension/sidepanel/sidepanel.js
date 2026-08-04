@@ -12,29 +12,81 @@ const elements = {
   targetCount: document.querySelector("#target-count"),
   targets: document.querySelector("#target-list"),
   logs: document.querySelector("#log-list"),
-  bridge: document.querySelector("#bridge-state")
+  bridge: document.querySelector("#bridge-state"),
+  adapterState: document.querySelector("#adapter-state"),
+  adapterNames: document.querySelector("#adapter-names"),
+  grantPermissions: document.querySelector("#grant-permissions")
 };
 let dashboard = null;
+let observerStatus = null;
 const BRIDGE_URLS = ["ws://127.0.0.1:38492", "ws://127.0.0.1:38493"];
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "dashboard.changed") render(message.dashboard);
+  if (message?.type === "observer.adapters.changed") renderAdapters(message.status);
 });
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "session" && changes.pageObserverDashboard?.newValue) render(changes.pageObserverDashboard.newValue);
 });
 
 void initialize();
+elements.grantPermissions.addEventListener("click", () => { void grantAdapterPermissions(); });
 setInterval(() => dashboard && renderTime(dashboard), 1_000);
 
 async function initialize() {
   await probeLoopbackAccess();
   await chrome.runtime.sendMessage({ type: "bridge.retry" }).catch(() => {});
+  const status = await chrome.runtime.sendMessage({ type: "observer.status" }).catch(() => null);
+  if (status?.ok) renderAdapters(status);
   const current = await chrome.runtime.sendMessage({ type: "dashboard.get" });
   if (current?.ok) render(current.dashboard);
   const observed = await chrome.runtime.sendMessage({ type: "observer.observe" });
   if (!observed?.ok) {
     elements.url.textContent = observed?.error || "当前页面暂时无法观察。";
+  }
+}
+
+function renderAdapters(status) {
+  observerStatus = status;
+  const adapters = status?.adapters || [];
+  const uniqueAdapters = [...new Map(adapters.map((adapter) => [adapter.id, adapter])).values()];
+  if (uniqueAdapters.length === 0) {
+    elements.adapterState.textContent = "等待连接";
+    elements.adapterState.className = "capture-state";
+    elements.adapterNames.textContent = "本地服务连接后会动态注册网站描述文件。";
+    elements.grantPermissions.hidden = true;
+    return;
+  }
+  const missing = [...new Set(uniqueAdapters.flatMap((adapter) => adapter.missingHostPermissions || []))];
+  elements.adapterNames.textContent = uniqueAdapters
+    .map((adapter) => `${adapter.displayName} · ${adapter.descriptorCount} 个描述文件`)
+    .join("；");
+  elements.adapterState.textContent = missing.length ? "需要授权" : "已就绪";
+  elements.adapterState.className = `capture-state ${missing.length ? "active" : "complete"}`;
+  elements.grantPermissions.hidden = missing.length === 0;
+  elements.grantPermissions.textContent = missing.length === 1 ? "授权适配器网站" : `授权 ${missing.length} 个适配器网站`;
+}
+
+async function grantAdapterPermissions() {
+  const missing = [...new Set((observerStatus?.adapters || [])
+    .flatMap((adapter) => adapter.missingHostPermissions || []))];
+  if (missing.length === 0) return;
+  elements.grantPermissions.disabled = true;
+  try {
+    const granted = await chrome.permissions.request({ origins: missing });
+    if (!granted) {
+      elements.adapterState.textContent = "授权被取消";
+      return;
+    }
+    const refreshed = await chrome.runtime.sendMessage({ type: "observer.permissions.refresh" });
+    if (refreshed?.ok) renderAdapters(refreshed);
+    const observed = await chrome.runtime.sendMessage({ type: "observer.observe" });
+    if (!observed?.ok) elements.url.textContent = observed?.error || "授权后观察失败。";
+  } catch (error) {
+    elements.adapterState.textContent = "授权失败";
+    elements.adapterNames.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    elements.grantPermissions.disabled = false;
   }
 }
 

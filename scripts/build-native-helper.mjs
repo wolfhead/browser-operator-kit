@@ -10,11 +10,18 @@ if (process.platform !== "darwin") {
 }
 
 const outputDirectory = path.join(packageRoot, "native-helper", "macos", ".build");
+const outputPath = path.join(outputDirectory, "web-input-helper");
 await mkdir(outputDirectory, { recursive: true });
 await run("swiftc", [
   path.join(packageRoot, "native-helper", "macos", "WebInputHelper.swift"),
   "-o",
-  path.join(outputDirectory, "web-input-helper")
+  outputPath
+]);
+await run("codesign", [
+  "--force",
+  "--sign", "-",
+  "--identifier", "com.github.wolfhead.browser-operator-kit.web-input-helper",
+  outputPath
 ]);
 console.log("Built generic macOS native input helper.");
 

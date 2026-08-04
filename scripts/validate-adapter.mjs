@@ -1,5 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
+import { loadAdapterRegistration } from "../src/adapter-loader.js";
 
 const adapterPath = path.resolve(process.argv[2] || "");
 if (!process.argv[2]) throw new Error("Usage: validate-adapter.mjs <automation.adapter.json>");
@@ -20,6 +21,11 @@ for (const configuredPath of [
 for (const value of adapter.orchestrator?.allowedOpenUrls || []) {
   const url = new URL(value);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) errors.push(`unsafe allowedOpenUrl: ${value}`);
+}
+try {
+  await loadAdapterRegistration(adapterPath);
+} catch (error) {
+  errors.push(error instanceof Error ? error.message : String(error));
 }
 if (errors.length) {
   console.error(errors.join("\n"));

@@ -51,6 +51,51 @@ test("bridge waitForConnection resolves when the extension connects", async (con
   assert.equal(status.extensionOrigin, "chrome-extension://connection-wait-test");
 });
 
+test("bridge waits for runtime adapter registration acknowledgement", async (context) => {
+  const adapter = {
+    schemaVersion: 1,
+    id: "runtime-test",
+    displayName: "Runtime Test",
+    version: "1.0.0",
+    hostPermissions: ["https://example.com/*"],
+    descriptors: [{
+      schemaVersion: 1,
+      id: "runtime-test-page",
+      version: "1.0.0",
+      match: { origins: ["https://example.com"] },
+      pages: [], fields: [], controls: [], values: [], collections: [], scrollables: []
+    }]
+  };
+  const bridge = new BridgeServer({ port: 0, requestTimeoutMs: 500, adapter });
+  await bridge.start();
+  context.after(() => bridge.stop());
+
+  const waiting = bridge.waitForConnection(1_000);
+  const socket = new WebSocket(`ws://127.0.0.1:${bridge.address().port}`, {
+    origin: "chrome-extension://runtime-adapter-test"
+  });
+  context.after(() => socket.close());
+  const hello = await new Promise((resolve, reject) => {
+    socket.once("message", (raw) => resolve(JSON.parse(raw.toString())));
+    socket.once("error", reject);
+  });
+
+  assert.equal(hello.type, "bridge.hello");
+  assert.equal(hello.adapter.id, "runtime-test");
+  assert.equal(bridge.status().ready, false);
+  await assert.rejects(bridge.request("observer.status"), /registration is not ready/);
+
+  socket.send(JSON.stringify({
+    type: "bridge.ready",
+    protocolVersion: BRIDGE_PROTOCOL_VERSION,
+    ok: true,
+    adapterStatus: { id: "runtime-test", missingHostPermissions: ["https://example.com/*"] }
+  }));
+  const status = await waiting;
+  assert.equal(status.ready, true);
+  assert.equal(status.adapterStatus.id, "runtime-test");
+});
+
 test("bridge waitForConnection rejects after its bounded timeout", async (context) => {
   const bridge = new BridgeServer({ port: 0, requestTimeoutMs: 500 });
   await bridge.start();

@@ -57,6 +57,9 @@ async function handleCommand(command, params) {
       return await getStatus();
     case "observer.observe":
       return await observeAndPublish();
+    case "observer.permissions.refresh":
+      await notifyAdapterChanged();
+      return await getStatus();
     case "observer.inspect.snapshot":
       return await observer.inspectSnapshot(params);
     case "observer.inspect.query":
@@ -96,7 +99,11 @@ async function observeAndPublish() {
 }
 
 async function getStatus() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const [tab, descriptors, adapters] = await Promise.all([
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }).then((tabs) => tabs[0]),
+    observer.loadDescriptors(),
+    observer.adapterStatuses()
+  ]);
   return {
     ok: true,
     bridges: BRIDGE_URLS.map((url) => ({
@@ -104,7 +111,8 @@ async function getStatus() {
       connected: bridgeConnections.get(url)?.socket?.readyState === WebSocket.OPEN
     })),
     activeTab: tab ? { id: tab.id, windowId: tab.windowId, title: tab.title ?? "", url: tab.url ?? "" } : null,
-    descriptorCount: (await observer.loadDescriptors()).length,
+    descriptorCount: descriptors.length,
+    adapters,
     role: "descriptor-observer-dashboard-and-explicit-inspector"
   };
 }
@@ -230,7 +238,7 @@ function connectBridge(url) {
     existing.delayMs = 1_000;
     console.debug(JSON.stringify({ level: "debug", event: "bridge_connected", url }));
   });
-  socket.addEventListener("message", (event) => { void handleBridgeMessage(socket, event.data); });
+  socket.addEventListener("message", (event) => { void handleBridgeMessage(url, socket, event.data); });
   socket.addEventListener("close", (event) => {
     console.debug(JSON.stringify({
       level: "debug",
@@ -240,6 +248,8 @@ function connectBridge(url) {
       reason: event.reason || ""
     }));
     if (existing.socket === socket) existing.socket = null;
+    observer.unregisterAdapter(url);
+    void notifyAdapterChanged();
     existing.timer = setTimeout(() => connectBridge(url), existing.delayMs);
     existing.delayMs = Math.min(existing.delayMs * 2, 10_000);
   });
@@ -249,10 +259,32 @@ function connectBridge(url) {
   });
 }
 
-async function handleBridgeMessage(socket, raw) {
+async function handleBridgeMessage(url, socket, raw) {
   let message;
   try { message = JSON.parse(String(raw)); } catch { return; }
-  if (message?.type === "bridge.hello") return;
+  if (message?.type === "bridge.hello") {
+    try {
+      const adapterStatus = message.adapter
+        ? await observer.registerAdapter(url, message.adapter)
+        : null;
+      if (!message.adapter) observer.unregisterAdapter(url);
+      socket.send(JSON.stringify({
+        type: "bridge.ready",
+        protocolVersion: BRIDGE_PROTOCOL_VERSION,
+        ok: true,
+        adapterStatus
+      }));
+      await notifyAdapterChanged();
+    } catch (error) {
+      socket.send(JSON.stringify({
+        type: "bridge.ready",
+        protocolVersion: BRIDGE_PROTOCOL_VERSION,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      }));
+    }
+    return;
+  }
   if (message?.type === "bridge.ping") {
     socket.send(JSON.stringify({ type: "bridge.pong", protocolVersion: BRIDGE_PROTOCOL_VERSION, timestamp: message.timestamp }));
     return;
@@ -270,4 +302,9 @@ async function handleBridgeMessage(socket, raw) {
       error: error instanceof Error ? error.message : String(error)
     }));
   }
+}
+
+async function notifyAdapterChanged() {
+  const status = await getStatus();
+  await chrome.runtime.sendMessage({ type: "observer.adapters.changed", status }).catch(() => {});
 }

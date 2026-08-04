@@ -7,10 +7,10 @@ const extensionRoot = path.dirname(manifestPath);
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const worker = await readFile(path.join(extensionRoot, "observer-service-worker.js"), "utf8");
 const runtime = await readFile(path.join(extensionRoot, "observer", "runtime.js"), "utf8");
-const registry = await readFile(path.join(extensionRoot, "observer", "descriptor-registry.js"), "utf8");
 const errors = [];
 
 if (manifest.manifest_version !== 3) errors.push("manifest_version must be 3");
+if (manifest.name !== "Browser Operator Kit Page Observer") errors.push("the installed extension name must stay generic");
 if (manifest.background?.service_worker !== "observer-service-worker.js") {
   errors.push("the descriptor-driven Page Observer worker must be the only loaded service worker");
 }
@@ -31,18 +31,13 @@ if (/\.click\(|\.focus\(|\.scroll(To|By)?\(|dispatchEvent\(|element\.value\s*=/.
   errors.push("Page Observer runtime must not mutate or interact with the observed page");
 }
 if (!manifest.side_panel?.default_path) errors.push("side_panel.default_path is required");
-
-const descriptorPaths = [...registry.matchAll(/["'](observer\/descriptors\/[^"']+\.json)["']/g)]
-  .map((match) => match[1]);
-if (descriptorPaths.length === 0) errors.push("generated descriptor registry must not be empty");
-for (const relativePath of descriptorPaths) {
-  try {
-    const descriptor = JSON.parse(await readFile(path.join(extensionRoot, relativePath), "utf8"));
-    if (descriptor.schemaVersion !== 1 || !descriptor.id || !Array.isArray(descriptor.pages)) {
-      errors.push(`invalid Page Observer descriptor: ${relativePath}`);
-    }
-  } catch {
-    errors.push(`missing or invalid Page Observer descriptor artifact: ${relativePath}`);
+const optionalHostPermissions = new Set(manifest.optional_host_permissions ?? []);
+for (const required of ["http://*/*", "https://*/*"]) {
+  if (!optionalHostPermissions.has(required)) errors.push(`missing optional site permission: ${required}`);
+}
+for (const permission of manifest.host_permissions ?? []) {
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/\*$/.test(permission)) {
+    errors.push(`the generic extension may only have persistent loopback host permission: ${permission}`);
   }
 }
 for (const relativePath of ["observer/descriptor-schema.json", manifest.side_panel?.default_path]) {
@@ -53,5 +48,5 @@ if (errors.length) {
   console.error(errors.join("\n"));
   process.exitCode = 1;
 } else {
-  console.log(`Validated read-only Page Observer manifest with ${descriptorPaths.length} descriptor(s).`);
+  console.log("Validated generic read-only Page Observer manifest with runtime adapter permissions.");
 }

@@ -28,4 +28,6 @@ An `openUrl` bootstrap is targetless but still requires an exact runtime allowli
 
 ## Adapter boundary
 
-The extension builder copies the generic extension template, copies only declared descriptors, generates the descriptor registry, adds adapter host permissions, and injects adapter bridge URLs. The Command Orchestrator receives operation directories, exact allowed URLs, and optional Reader handlers separately. This keeps site code out of the public core and lets multiple private adapters consume the same package.
+The installed extension is a single generic runtime with no bundled site descriptors and no persistent site permissions. A local Page Observer or Command Orchestrator loads an Adapter, validates its JSON descriptors, and sends a registration package in the loopback bridge handshake. The extension keeps registrations scoped to active bridge connections and asks the user to grant only the Adapter's declared origins from the Side Panel.
+
+The Command Orchestrator receives operation directories, exact allowed URLs, and optional Reader handlers separately. Site descriptors and operations therefore stay in the Adapter repository without forking, rebuilding, or renaming the public extension.

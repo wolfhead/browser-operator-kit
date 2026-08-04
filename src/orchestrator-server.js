@@ -19,6 +19,8 @@ export async function createOrchestratorServer({
   orchestrator = null,
   readerHandlers = {},
   allowedOpenUrls = [],
+  adapter = null,
+  adapterPath = process.env.WEB_AUTOMATION_ADAPTER_PATH || null,
   logger = log
 } = {}) {
 const resolvedProjectRoot = projectRoot || await findProjectRoot();
@@ -26,7 +28,7 @@ const resolvedBridgePort = bridgePort ?? parsePort(
   process.env.WEB_ORCHESTRATOR_BRIDGE_PORT ?? process.env.WEB_OPERATOR_BRIDGE_PORT,
   DEFAULT_ORCHESTRATOR_BRIDGE_PORT
 );
-bridge = bridge || new BridgeServer({ port: resolvedBridgePort, logger });
+bridge = bridge || new BridgeServer({ port: resolvedBridgePort, logger, adapter, adapterPath });
 inputDriver = inputDriver || new NativeInputDriver({ projectRoot: resolvedProjectRoot, logger });
 catalog = catalog || new OperationCatalog({ projectRoot: resolvedProjectRoot });
 orchestrator = orchestrator || new CommandOrchestrator({ bridge, inputDriver, logger, allowedOpenUrls });

@@ -37,11 +37,14 @@ npm run check
 
 This builds:
 
-- `dist/demo-extension`: the generated Chrome extension for the neutral local demo
+- `dist/extension`: the single generic Chrome extension used by every adapter
+- `dist/demo-extension`: a generic test build pinned to the isolated demo bridge
 - `dist/server`: bundled Page Observer, Native Input Driver, and Command Orchestrator MCP servers
 - `native-helper/macos/.build/web-input-helper`: the native input helper
 
-To load the demo extension, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the absolute `browser-operator-kit/dist/demo-extension` directory. Start the neutral fixture with:
+For normal use, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the absolute `browser-operator-kit/dist/extension` directory. The extension contains no site descriptors or site permissions. A connected local Adapter service registers descriptors at runtime, and the Side Panel asks the user to grant only the declared sites.
+
+The isolated demo acceptance loads `dist/demo-extension` automatically. Start the neutral fixture with:
 
 ```bash
 python3 -m http.server 8765 --bind 127.0.0.1 --directory demo/site
@@ -67,8 +70,7 @@ An adapter supplies site knowledge without modifying the generic runtime. See [`
   "version": "1.0.0",
   "extension": {
     "descriptors": ["descriptors/example.json"],
-    "hostPermissions": ["https://example.com/*"],
-    "bridgeUrls": ["ws://127.0.0.1:38493"]
+    "hostPermissions": ["https://example.com/*"]
   },
   "orchestrator": {
     "operationDirectories": ["operations"],
@@ -77,15 +79,14 @@ An adapter supplies site knowledge without modifying the generic runtime. See [`
 }
 ```
 
-Build it with:
+Launch the Page Observer or Command Orchestrator with the Adapter path:
 
 ```bash
-node scripts/build-extension.mjs \
-  --adapter /absolute/path/to/automation.adapter.json \
-  --output /absolute/path/to/dist/extension
+WEB_AUTOMATION_ADAPTER_PATH=/absolute/path/to/automation.adapter.json \
+  node dist/server/page-observer-server.mjs
 ```
 
-Host permissions are generated from the adapter. `openUrl` accepts HTTP(S), rejects credentials, and requires an exact match in the Command Orchestrator's runtime allowlist.
+The bridge sends validated JSON descriptors to the generic extension during its connection handshake. Host permissions remain optional until the user grants the Adapter's declared origins in the Side Panel. `openUrl` accepts HTTP(S), rejects credentials, and requires an exact match in the Command Orchestrator's runtime allowlist.
 
 ## Page Observer descriptors
 
@@ -177,6 +178,7 @@ Configure `WEB_AUTOMATION_OPERATION_DIRS` and `WEB_AUTOMATION_ALLOWED_OPEN_URLS`
 ## Security model
 
 - No Chrome `debugger`, `nativeMessaging`, `offscreen`, or persistent content-script permission.
+- No persistent site permission in the installable generic extension; Adapter origins are optional and user-granted.
 - Page Observer runtime is checked for page interaction primitives.
 - Native Input Driver validates Accessibility access, the frontmost bundle, window bounds, observation freshness, and action bounds.
 - Native text is passed as Base64 argv data without shell interpolation.

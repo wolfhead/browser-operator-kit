@@ -1,4 +1,3 @@
-import { DESCRIPTOR_PATHS } from "./descriptor-registry.js";
 import { buildFrameOffsets, chooseBestScrollableTarget, chooseBestTarget } from "./frame-geometry.js";
 import { screenPointFromPageGeometry } from "./geometry.js";
 import { inspectEvaluateDocument, inspectQueryDocument, inspectSnapshotDocument } from "./inspector-runtime.js";
@@ -6,19 +5,50 @@ import { observeDocument } from "./runtime.js";
 
 export class PageObserver {
   constructor() {
-    this.descriptors = null;
+    this.adapterSources = new Map();
   }
 
   async loadDescriptors() {
-    if (this.descriptors) return this.descriptors;
-    this.descriptors = await Promise.all(DESCRIPTOR_PATHS.map(async (path) => {
-      const response = await fetch(chrome.runtime.getURL(path));
-      if (!response.ok) throw new Error(`Could not load Page Observer descriptor: ${path}`);
-      const descriptor = await response.json();
-      validateDescriptor(descriptor, path);
-      return descriptor;
-    }));
-    return this.descriptors;
+    const descriptors = new Map();
+    for (const adapter of this.adapterSources.values()) {
+      for (const descriptor of adapter.descriptors) {
+        descriptors.set(`${descriptor.id}@${descriptor.version}`, descriptor);
+      }
+    }
+    return [...descriptors.values()];
+  }
+
+  async registerAdapter(source, registration) {
+    validateAdapterRegistration(registration, source);
+    this.adapterSources.set(source, structuredClone(registration));
+    return await this.adapterStatus(source);
+  }
+
+  unregisterAdapter(source) {
+    return this.adapterSources.delete(source);
+  }
+
+  async adapterStatuses() {
+    return await Promise.all([...this.adapterSources.keys()].map((source) => this.adapterStatus(source)));
+  }
+
+  async adapterStatus(source) {
+    const adapter = this.adapterSources.get(source);
+    if (!adapter) return null;
+    const missingHostPermissions = [];
+    for (const origin of adapter.hostPermissions) {
+      if (!await chrome.permissions.contains({ origins: [origin] })) missingHostPermissions.push(origin);
+    }
+    return {
+      source,
+      id: adapter.id,
+      displayName: adapter.displayName,
+      version: adapter.version,
+      descriptorCount: adapter.descriptors.length,
+      hostPermissions: [...adapter.hostPermissions],
+      missingHostPermissions,
+      authorized: missingHostPermissions.length === 0
+    };
   }
 
   async observeActiveTab() {
@@ -32,6 +62,10 @@ export class PageObserver {
     const descriptors = (await this.loadDescriptors()).filter((descriptor) => matches(descriptor, url));
     if (descriptors.length === 0) {
       return this.unregisteredObservation(tab, observedAt);
+    }
+    const requiredHostPermission = `${url.origin}/*`;
+    if (!await chrome.permissions.contains({ origins: [requiredHostPermission] })) {
+      return this.permissionRequiredObservation(tab, observedAt, requiredHostPermission, descriptors);
     }
     const [windowInfo, zoomFactor] = await Promise.all([
       chrome.windows.get(tab.windowId),
@@ -216,6 +250,50 @@ export class PageObserver {
       fields: {}, controls: {}, values: {}, collections: {}, scrollables: {}, frames: []
     };
   }
+
+  permissionRequiredObservation(tab, observedAt, requiredHostPermission, descriptors) {
+    return {
+      ok: true,
+      observationId: crypto.randomUUID(),
+      observedAt,
+      expiresAt: observedAt + 15_000,
+      descriptorIds: [...new Set(descriptors.map((descriptor) => descriptor.id))],
+      page: "permission-required",
+      tab: { id: tab.id, windowId: tab.windowId, title: tab.title ?? "", url: tab.url },
+      requiredHostPermissions: [requiredHostPermission],
+      fields: {}, controls: {}, values: {}, collections: {}, scrollables: {}, frames: []
+    };
+  }
+}
+
+function validateAdapterRegistration(registration, source) {
+  if (
+    registration?.schemaVersion !== 1 ||
+    !isNonEmptyString(registration.id) ||
+    !isNonEmptyString(registration.displayName) ||
+    !isNonEmptyString(registration.version)
+  ) {
+    throw new Error(`Invalid adapter registration metadata from ${source}.`);
+  }
+  if (!Array.isArray(registration.hostPermissions) || registration.hostPermissions.length === 0) {
+    throw new Error(`Adapter registration from ${source} has no host permissions.`);
+  }
+  for (const permission of registration.hostPermissions) {
+    if (!isNonEmptyString(permission) || !/^https?:\/\/[^/]+\/\*$/.test(permission)) {
+      throw new Error(`Adapter registration from ${source} has invalid host permission '${String(permission)}'.`);
+    }
+  }
+  if (!Array.isArray(registration.descriptors) || registration.descriptors.length === 0) {
+    throw new Error(`Adapter registration from ${source} has no descriptors.`);
+  }
+  for (const descriptor of registration.descriptors) {
+    validateDescriptor(descriptor, source);
+    for (const origin of descriptor.match.origins) {
+      if (!registration.hostPermissions.includes(`${origin}/*`)) {
+        throw new Error(`Adapter registration from ${source} does not authorize descriptor origin '${origin}'.`);
+      }
+    }
+  }
 }
 
 function validateDescriptor(descriptor, path) {
@@ -238,4 +316,8 @@ function matches(descriptor, url) {
 function pagePriority(descriptors, pageName) {
   return descriptors.flatMap((descriptor) => descriptor.pages)
     .find((page) => page.name === pageName)?.priority ?? 0;
+}
+
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
 }

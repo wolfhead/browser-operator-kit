@@ -204,6 +204,12 @@ h3 {
   opacity: 0.58;
 }
 
+.controls button:focus-visible,
+.open-button:focus-visible {
+  outline: 3px solid rgb(0 143 130 / 35%);
+  outline-offset: 2px;
+}
+
 .primary {
   border: 1px solid #008f82;
   color: white;
@@ -268,6 +274,12 @@ h3 {
 .page-url {
   margin-top: 10px !important;
   overflow-wrap: anywhere;
+}
+
+.permission-button {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
 }
 
 .capture-state {
