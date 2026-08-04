@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  NativeInputController,
+  NativeInputDriver,
   normalizeNativeAction
-} from "../src/native-input-controller.js";
+} from "../src/native-input-driver.js";
 
 test("native input actions are bounded and normalized", () => {
   assert.deepEqual(
@@ -33,7 +33,7 @@ test("native input actions are bounded and normalized", () => {
 
 test("native text input is encoded without shell interpolation", async () => {
   const calls = [];
-  const controller = new NativeInputController({
+  const controller = new NativeInputDriver({
     projectRoot: "/tmp/browser-operator-kit-native-test",
     environment: { WEB_AUTOMATION_INPUT_HELPER_PATH: "/bin/echo" },
     minimumIntervalMs: 0,
@@ -61,9 +61,9 @@ test("native text input is encoded without shell interpolation", async () => {
   );
 });
 
-test("native input controller invokes the helper without a shell", async () => {
+test("native input driver invokes the helper without a shell", async () => {
   const calls = [];
-  const controller = new NativeInputController({
+  const controller = new NativeInputDriver({
     projectRoot: "/tmp/browser-operator-kit-native-test",
     environment: { WEB_AUTOMATION_INPUT_HELPER_PATH: "/bin/echo" },
     minimumIntervalMs: 0,
@@ -102,7 +102,7 @@ test("native input controller invokes the helper without a shell", async () => {
 
 test("browser bootstrap uses explicit bundle identifiers and encoded URLs", async () => {
   const calls = [];
-  const controller = new NativeInputController({
+  const controller = new NativeInputDriver({
     projectRoot: "/tmp/browser-operator-kit-native-test",
     environment: { WEB_AUTOMATION_INPUT_HELPER_PATH: "/bin/echo" },
     runner: async (file, argumentsList, options) => {
@@ -132,7 +132,7 @@ test("browser bootstrap uses explicit bundle identifiers and encoded URLs", asyn
 });
 
 test("foreground lease does not steal focus back after human takeover", async () => {
-  const controller = new NativeInputController({ projectRoot: "/tmp/browser-operator-kit-native-test" });
+  const controller = new NativeInputDriver({ projectRoot: "/tmp/browser-operator-kit-native-test" });
   controller.foregroundLeases.set("lease-1", {
     leaseId: "lease-1",
     switched: true,
@@ -149,7 +149,7 @@ test("foreground lease does not steal focus back after human takeover", async ()
 });
 
 test("foreground lease restores the previously frontmost process", async () => {
-  const controller = new NativeInputController({ projectRoot: "/tmp/browser-operator-kit-native-test" });
+  const controller = new NativeInputDriver({ projectRoot: "/tmp/browser-operator-kit-native-test" });
   controller.foregroundLeases.set("lease-1", {
     leaseId: "lease-1",
     switched: true,
@@ -174,7 +174,7 @@ test("foreground lease restores the previously frontmost process", async () => {
 });
 
 test("foreground policy can forbid activating a background browser", async () => {
-  const controller = new NativeInputController({ projectRoot: "/tmp/browser-operator-kit-native-test" });
+  const controller = new NativeInputDriver({ projectRoot: "/tmp/browser-operator-kit-native-test" });
   controller.status = async () => ({
     available: true,
     accessibilityPostEventAccess: true,

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Browser Operator Kit Eye",
+  "name": "Browser Operator Kit Page Observer",
   "description": "Descriptor-driven page observation, explicit JavaScript inspection, and automation status for Codex.",
   "version": "0.9.0",
   "minimum_chrome_version": "116",
@@ -16,7 +16,7 @@
     "http://127.0.0.1:38493/*"
   ],
   "background": {
-    "service_worker": "eye-service-worker.js",
+    "service_worker": "observer-service-worker.js",
     "type": "module"
   },
   "content_scripts": [],

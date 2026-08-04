@@ -1,14 +1,14 @@
-import { EyeEngine } from "./eye/engine.js";
+import { PageObserver } from "./observer/engine.js";
 
 const BRIDGE_URLS = [
   "ws://127.0.0.1:38492",
   "ws://127.0.0.1:38493"
 ];
 const BRIDGE_PROTOCOL_VERSION = 1;
-const DASHBOARD_STORAGE_KEY = "webEyeDashboard";
+const DASHBOARD_STORAGE_KEY = "pageObserverDashboard";
 const MAX_LOGS = 100;
-const BRIDGE_WAKE_ALARM = "web-eye-bridge-wake";
-const eye = new EyeEngine();
+const BRIDGE_WAKE_ALARM = "page-observer-bridge-wake";
+const observer = new PageObserver();
 const bridgeConnections = new Map();
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -53,17 +53,17 @@ async function configureBridgeWakeAlarm() {
 
 async function handleCommand(command, params) {
   switch (command) {
-    case "eye.status":
+    case "observer.status":
       return await getStatus();
-    case "eye.observe":
+    case "observer.observe":
       return await observeAndPublish();
-    case "eye.inspect.snapshot":
-      return await eye.inspectSnapshot(params);
-    case "eye.inspect.query":
-      return await eye.inspectQuery(params);
-    case "eye.inspect.evaluate":
-      return await eye.inspectEvaluate(params);
-    case "eye.reload":
+    case "observer.inspect.snapshot":
+      return await observer.inspectSnapshot(params);
+    case "observer.inspect.query":
+      return await observer.inspectQuery(params);
+    case "observer.inspect.evaluate":
+      return await observer.inspectEvaluate(params);
+    case "observer.reload":
       setTimeout(() => chrome.runtime.reload(), 100);
       return { ok: true, scheduled: true };
     case "bridge.retry":
@@ -82,12 +82,12 @@ async function handleCommand(command, params) {
     case "dashboard.log":
       return await appendLog(params.message, params.level);
     default:
-      throw new Error(`Unsupported Eye command: ${String(command)}`);
+      throw new Error(`Unsupported Page Observer command: ${String(command)}`);
   }
 }
 
 async function observeAndPublish() {
-  const observation = await eye.observeActiveTab();
+  const observation = await observer.observeActiveTab();
   const dashboard = await readDashboard();
   dashboard.latestObservation = observation;
   dashboard.updatedAt = Date.now();
@@ -104,8 +104,8 @@ async function getStatus() {
       connected: bridgeConnections.get(url)?.socket?.readyState === WebSocket.OPEN
     })),
     activeTab: tab ? { id: tab.id, windowId: tab.windowId, title: tab.title ?? "", url: tab.url ?? "" } : null,
-    descriptorCount: (await eye.loadDescriptors()).length,
-    role: "descriptor-eye-dashboard-and-explicit-inspector"
+    descriptorCount: (await observer.loadDescriptors()).length,
+    role: "descriptor-observer-dashboard-and-explicit-inspector"
   };
 }
 

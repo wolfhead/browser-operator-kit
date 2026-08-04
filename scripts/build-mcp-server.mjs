@@ -9,9 +9,9 @@ await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 
 for (const [entry, outfile] of [
-  ["eye-server.js", "web-eye-server.mjs"],
-  ["hand-server.js", "native-hand-server.mjs"],
-  ["operator-server-entry.js", "web-operator-server.mjs"]
+  ["observer-server.js", "page-observer-server.mjs"],
+  ["input-driver-server.js", "native-input-server.mjs"],
+  ["orchestrator-server-entry.js", "command-orchestrator-server.mjs"]
 ]) {
   await build({
     entryPoints: [path.join(packageRoot, "src", entry)],
@@ -22,8 +22,8 @@ for (const [entry, outfile] of [
     target: "node20",
     legalComments: "eof",
     banner: {
-      js: "import { createRequire as __webOperatorCreateRequire } from 'node:module'; const require = __webOperatorCreateRequire(import.meta.url);"
+      js: "import { createRequire as __browserOperatorCreateRequire } from 'node:module'; const require = __browserOperatorCreateRequire(import.meta.url);"
     }
   });
 }
-console.log("Built generic Web Eye, Native Hand, and Web Operator MCP servers.");
+console.log("Built generic Page Observer, Native Input Driver, and Command Orchestrator MCP servers.");

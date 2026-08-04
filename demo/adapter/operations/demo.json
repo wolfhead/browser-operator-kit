@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "id": "web-operator-demo-operations",
+  "id": "browser-operator-demo-operations",
   "browserBundleIdentifier": "com.google.chrome.for.testing",
   "operations": {
     "demo.search.setKeywords": {
@@ -132,15 +132,15 @@
       ]
     },
     "demo.state.observe": {
-      "description": "Read the current registered local page state without a Hand action.",
+      "description": "Read the current registered local page state without a native input action.",
       "parameters": {},
       "reader": {
-        "handler": "eye.observe",
+        "handler": "observer.observe",
         "input": {}
       }
     },
     "demo.search.runAndObserve": {
-      "description": "Run a local search and then return a registered Eye observation.",
+      "description": "Run a local search and then return a registered Page Observer result.",
       "parameters": {
         "request": {
           "type": "object",

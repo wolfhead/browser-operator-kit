@@ -8,7 +8,7 @@ Security fixes are applied to the latest release on the `main` branch.
 
 Browser Operator Kit is designed for a trusted, single-user macOS workstation. Its WebSocket
 bridges bind exclusively to `127.0.0.1`, but other local processes are inside the trust boundary.
-Do not run the native Hand or Operator on an untrusted multi-user host.
+Do not run the Native Input Driver or Command Orchestrator on an untrusted multi-user host.
 
 Adapters are responsible for restricting host permissions, allowed navigation URLs, login and
 verification pages, and any site-specific data handling policy. The generic toolkit does not

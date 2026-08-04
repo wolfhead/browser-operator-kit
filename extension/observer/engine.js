@@ -4,7 +4,7 @@ import { screenPointFromPageGeometry } from "./geometry.js";
 import { inspectEvaluateDocument, inspectQueryDocument, inspectSnapshotDocument } from "./inspector-runtime.js";
 import { observeDocument } from "./runtime.js";
 
-export class EyeEngine {
+export class PageObserver {
   constructor() {
     this.descriptors = null;
   }
@@ -13,7 +13,7 @@ export class EyeEngine {
     if (this.descriptors) return this.descriptors;
     this.descriptors = await Promise.all(DESCRIPTOR_PATHS.map(async (path) => {
       const response = await fetch(chrome.runtime.getURL(path));
-      if (!response.ok) throw new Error(`Could not load Eye descriptor: ${path}`);
+      if (!response.ok) throw new Error(`Could not load Page Observer descriptor: ${path}`);
       const descriptor = await response.json();
       validateDescriptor(descriptor, path);
       return descriptor;
@@ -27,7 +27,7 @@ export class EyeEngine {
     if (!tab?.id || !tab.url) throw new Error("No observable active Chrome tab is available.");
     const url = new URL(tab.url);
     if (!["http:", "https:"].includes(url.protocol)) {
-      throw new Error(`Eye cannot inspect restricted URL protocol '${url.protocol}'.`);
+      throw new Error(`Page Observer cannot inspect restricted URL protocol '${url.protocol}'.`);
     }
     const descriptors = (await this.loadDescriptors()).filter((descriptor) => matches(descriptor, url));
     if (descriptors.length === 0) {
@@ -220,13 +220,13 @@ export class EyeEngine {
 
 function validateDescriptor(descriptor, path) {
   if (descriptor?.schemaVersion !== 1 || !descriptor.id || !descriptor.version) {
-    throw new Error(`Invalid Eye descriptor metadata: ${path}`);
+    throw new Error(`Invalid Page Observer descriptor metadata: ${path}`);
   }
   if (!Array.isArray(descriptor.match?.origins) || descriptor.match.origins.length === 0) {
-    throw new Error(`Eye descriptor has no allowed origins: ${path}`);
+    throw new Error(`Page Observer descriptor has no allowed origins: ${path}`);
   }
   for (const key of ["pages", "fields", "controls", "values", "collections", "scrollables"]) {
-    if (!Array.isArray(descriptor[key])) throw new Error(`Eye descriptor '${path}' has invalid ${key}.`);
+    if (!Array.isArray(descriptor[key])) throw new Error(`Page Observer descriptor '${path}' has invalid ${key}.`);
   }
 }
 

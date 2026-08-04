@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chooseUniqueIdentityAttribute } from "../extension/eye/runtime.js";
+import { chooseUniqueIdentityAttribute } from "../extension/observer/runtime.js";
 
 const element = (attributes) => ({
   getAttribute(name) { return attributes[name] ?? null; }

@@ -3,20 +3,20 @@
 Browser Operator Kit is a descriptor-driven browser automation foundation for Chrome on macOS. It separates observation, native input, and orchestration into three explicit roles:
 
 ```text
-Eye (Chrome extension, read-only state)
+Page Observer (Chrome extension, read-only state)
   ↓ named targets and fresh geometry
-Brain (MCP, Python, or another orchestrator)
+Command Orchestrator (MCP, Python, or another controller)
   ↓ guarded command
-Hand (native macOS input)
+Native Input Driver (native macOS input)
   ↓ real mouse, paste, or wheel event
-Eye (postcondition verification)
+Page Observer (postcondition verification)
 ```
 
 The extension also acts as a visible status board. It shows the detected page, registered fields and controls, bridge health, run state, current step, and reverse-chronological logs.
 
 ## Why the split matters
 
-Eye never clicks, types, scrolls, changes focus, or claims that an action succeeded. Hand knows nothing about the page DOM. A guarded command joins them by requiring an expected page, preconditions, a registered target, a foreground policy, one action, and postconditions. The browser is foregrounded only for the native action and verification window, then the previous application is restored unless another person or application has taken over.
+Page Observer never clicks, types, scrolls, changes focus, or claims that an action succeeded. Native Input Driver knows nothing about the page DOM. Command Orchestrator joins them through an Observe → Act → Verify command with an expected page, preconditions, a registered target, a foreground policy, one action, and postconditions. The browser is foregrounded only for the native action and verification window, then the previous application is restored unless another person or application has taken over.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ Eye never clicks, types, scrolls, changes focus, or claims that an action succee
 - Google Chrome
 - Accessibility permission for `native-helper/macos/.build/web-input-helper`
 
-Windows is not implemented yet. The operation and Eye layers are platform-independent; a Windows Hand can implement the same native helper contract later.
+Windows is not implemented yet. The operation and Page Observer layers are platform-independent; a Windows Native Input Driver can implement the same native helper contract later.
 
 ## Quick start
 
@@ -38,7 +38,7 @@ npm run check
 This builds:
 
 - `dist/demo-extension`: the generated Chrome extension for the neutral local demo
-- `dist/server`: bundled Eye, Hand, and Operator MCP servers
+- `dist/server`: bundled Page Observer, Native Input Driver, and Command Orchestrator MCP servers
 - `native-helper/macos/.build/web-input-helper`: the native input helper
 
 To load the demo extension, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the absolute `browser-operator-kit/dist/demo-extension` directory. Start the neutral fixture with:
@@ -53,7 +53,7 @@ Open `http://127.0.0.1:8765/`, open the extension Side Panel, and run:
 npm run accept:demo
 ```
 
-The isolated acceptance uses Chrome for Testing, a temporary profile, bridge port `38494`, real native paste/click/wheel events, and Eye postcondition checks. It briefly changes foreground focus while each Hand action runs.
+The isolated acceptance uses Chrome for Testing, a temporary profile, bridge port `38494`, real native paste/click/wheel events, and Page Observer postcondition checks. It briefly changes foreground focus while each Native Input Driver action runs.
 
 ## Adapter configuration
 
@@ -70,7 +70,7 @@ An adapter supplies site knowledge without modifying the generic runtime. See [`
     "hostPermissions": ["https://example.com/*"],
     "bridgeUrls": ["ws://127.0.0.1:38493"]
   },
-  "operator": {
+  "orchestrator": {
     "operationDirectories": ["operations"],
     "allowedOpenUrls": ["https://example.com/start"]
   }
@@ -85,9 +85,9 @@ node scripts/build-extension.mjs \
   --output /absolute/path/to/dist/extension
 ```
 
-Host permissions are generated from the adapter. `openUrl` accepts HTTP(S), rejects credentials, and requires an exact match in the Operator's runtime allowlist.
+Host permissions are generated from the adapter. `openUrl` accepts HTTP(S), rejects credentials, and requires an exact match in the Command Orchestrator's runtime allowlist.
 
-## Eye descriptors
+## Page Observer descriptors
 
 Descriptors declare:
 
@@ -96,7 +96,7 @@ Descriptors declare:
 - collections whose items can be addressed by index or stable identity;
 - scrollable regions, footer locators, overlap ratios, and remaining distance.
 
-Eye observations include the Chrome window and viewport geometry needed to convert page coordinates into native screen points. Inspector tools can also return bounded DOM snapshots, query CSS/XPath/text selectors, and explicitly execute JavaScript for adapter development. JavaScript execution is intentionally powerful and is exposed as a mutating, open-world Inspector action.
+Page Observer results include the Chrome window and viewport geometry needed to convert page coordinates into native screen points. Inspector tools can also return bounded DOM snapshots, query CSS/XPath/text selectors, and explicitly execute JavaScript for adapter development. JavaScript execution is intentionally powerful and is exposed as a mutating, open-world Inspector action.
 
 ## Named operations
 
@@ -104,7 +104,7 @@ Operation catalogs turn business-neutral semantic names into reusable guarded co
 
 - atomic: one `executeWebCommand` block;
 - composite: nested registered operations, including bounded array/object expansion;
-- reader: a named read handler such as the built-in `eye.observe` or a private injected handler.
+- reader: a named read handler such as the built-in `observer.observe` or a private injected handler.
 
 Example:
 
@@ -129,18 +129,18 @@ Example:
 ```js
 import {
   BridgeServer,
-  NativeInputController,
+  NativeInputDriver,
   OperationCatalog,
-  WebCommandRunner,
-  createOperatorServer,
-  startOperatorServer
+  CommandOrchestrator,
+  createOrchestratorServer,
+  startOrchestratorServer
 } from "browser-operator-kit";
 ```
 
-Private adapters can inject reader handlers when starting the Operator:
+Private adapters can inject reader handlers when starting the Command Orchestrator:
 
 ```js
-await startOperatorServer({
+await startOrchestratorServer({
   projectRoot,
   catalog,
   allowedOpenUrls,
@@ -172,16 +172,16 @@ with OperationBot.launch(root, environment={
     })
 ```
 
-Configure `WEB_AUTOMATION_OPERATION_DIRS` and `WEB_AUTOMATION_ALLOWED_OPEN_URLS` when launching the generic Operator for a custom adapter.
+Configure `WEB_AUTOMATION_OPERATION_DIRS` and `WEB_AUTOMATION_ALLOWED_OPEN_URLS` when launching the generic Command Orchestrator for a custom adapter.
 
 ## Security model
 
 - No Chrome `debugger`, `nativeMessaging`, `offscreen`, or persistent content-script permission.
-- Eye runtime is checked for page interaction primitives.
-- Hand validates Accessibility access, the frontmost bundle, window bounds, observation freshness, and action bounds.
+- Page Observer runtime is checked for page interaction primitives.
+- Native Input Driver validates Accessibility access, the frontmost bundle, window bounds, observation freshness, and action bounds.
 - Native text is passed as Base64 argv data without shell interpolation.
 - Input is serialized, rate-limited, and uses non-linear mouse paths with final-position correction.
-- Page changes are accepted only after fresh Eye postconditions pass.
+- Page changes are accepted only after fresh Page Observer postconditions pass.
 - Login, CAPTCHA, and site-specific verification policy belongs in the adapter and orchestrator.
 
 The local bridge trusts other processes on the same single-user workstation. It binds only to
@@ -190,9 +190,9 @@ for the supported trust boundary and vulnerability reporting guidance.
 
 ## Repository map
 
-- `extension/`: generic Eye runtime and Side Panel template
-- `native-helper/macos/`: generic native Hand implementation
-- `src/`: bridges, operation catalog, command runner, and MCP servers
+- `extension/`: generic Page Observer runtime and Side Panel template
+- `native-helper/macos/`: generic Native Input Driver implementation
+- `src/`: bridges, operation catalog, Command Orchestrator, and MCP servers
 - `python/browser_operator_kit/`: Python MCP client and named-operation facade
 - `demo/`: neutral adapter, operations, workflows, and local test page
 - `scripts/`: builders, validators, acceptance, and diagnostics

@@ -8,7 +8,7 @@
     "hostPermissions": ["http://127.0.0.1:8765/*"],
     "bridgeUrls": ["ws://127.0.0.1:38494"]
   },
-  "operator": {
+  "orchestrator": {
     "operationDirectories": ["operations"],
     "allowedOpenUrls": ["http://127.0.0.1:8765/"]
   }

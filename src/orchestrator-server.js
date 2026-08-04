@@ -3,34 +3,37 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { BridgeServer } from "./bridge-server.js";
 import { log, parsePort, resultWithText } from "./mcp-utils.js";
-import { NativeInputController } from "./native-input-controller.js";
+import { NativeInputDriver } from "./native-input-driver.js";
 import { OperationCatalog } from "./operation-catalog.js";
 import { findProjectRoot } from "./project-root.js";
-import { WebCommandRunner } from "./web-command-runner.js";
+import { CommandOrchestrator } from "./command-orchestrator.js";
 
-export const DEFAULT_OPERATOR_BRIDGE_PORT = 38493;
+export const DEFAULT_ORCHESTRATOR_BRIDGE_PORT = 38493;
 
-export async function createOperatorServer({
+export async function createOrchestratorServer({
   projectRoot = null,
   bridgePort = null,
   bridge = null,
-  hand = null,
+  inputDriver = null,
   catalog = null,
-  runner = null,
+  orchestrator = null,
   readerHandlers = {},
   allowedOpenUrls = [],
   logger = log
 } = {}) {
 const resolvedProjectRoot = projectRoot || await findProjectRoot();
-const resolvedBridgePort = bridgePort ?? parsePort(process.env.WEB_OPERATOR_BRIDGE_PORT, DEFAULT_OPERATOR_BRIDGE_PORT);
+const resolvedBridgePort = bridgePort ?? parsePort(
+  process.env.WEB_ORCHESTRATOR_BRIDGE_PORT ?? process.env.WEB_OPERATOR_BRIDGE_PORT,
+  DEFAULT_ORCHESTRATOR_BRIDGE_PORT
+);
 bridge = bridge || new BridgeServer({ port: resolvedBridgePort, logger });
-hand = hand || new NativeInputController({ projectRoot: resolvedProjectRoot, logger });
+inputDriver = inputDriver || new NativeInputDriver({ projectRoot: resolvedProjectRoot, logger });
 catalog = catalog || new OperationCatalog({ projectRoot: resolvedProjectRoot });
-runner = runner || new WebCommandRunner({ bridge, hand, logger, allowedOpenUrls });
+orchestrator = orchestrator || new CommandOrchestrator({ bridge, inputDriver, logger, allowedOpenUrls });
 const registeredReaders = new Map(Object.entries(readerHandlers));
 const server = new McpServer(
-  { name: "web-operator", version: "1.0.0" },
-  { instructions: "Execute declarative Eye→Hand→Eye commands. Every command verifies an expected page state and named target, leases foreground focus only for the action and verification window, restores the previous application unless a human takes over, and fails when postconditions do not match." }
+  { name: "command-orchestrator", version: "1.0.0" },
+  { instructions: "Execute declarative Observe → Act → Verify commands. Every command verifies an expected page state and named target, leases foreground focus only for the action and verification window, restores the previous application unless a human takes over, and fails when postconditions do not match." }
 );
 
 const assertionValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
@@ -140,7 +143,7 @@ const operationCall = z.object({
 
 server.registerTool("web_list_operations", {
   title: "List configured web operations",
-  description: "List the configuration-defined semantic operations that expand into guarded Eye→Hand→Eye commands.",
+  description: "List the configuration-defined semantic operations that expand into guarded Observe → Act → Verify commands.",
   inputSchema: {},
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
 }, async () => {
@@ -188,7 +191,7 @@ server.registerTool("web_execute_operations", {
 
 server.registerTool("web_execute_command", {
   title: "Execute one guarded web command",
-  description: "Verify page state and a named Eye target, temporarily foreground the browser, perform one Hand action, restore the previous app, and verify postconditions.",
+  description: "Verify page state and a named observer target, temporarily foreground the browser, perform one native input action, restore the previous app, and verify postconditions.",
   inputSchema: {
     id: z.string().min(1).max(120),
     label: z.string().min(1).max(160),
@@ -197,17 +200,17 @@ server.registerTool("web_execute_command", {
   },
   annotations
 }, async ({ id, label, browserBundleIdentifier, command: webCommand }) => {
-  const report = await runner.executeWorkflow({ id, label, browserBundleIdentifier, commands: [webCommand] });
+  const report = await orchestrator.executeWorkflow({ id, label, browserBundleIdentifier, commands: [webCommand] });
   return resultWithText(report, report.ok ? `Guarded web command '${webCommand.id}' completed and verified.` : `Guarded web command failed at ${report.error?.stage}: ${report.error?.message}`);
 });
 
 server.registerTool("web_execute_workflow", {
   title: "Execute a guarded web workflow",
-  description: "Run up to 50 declarative Eye→Hand→Eye commands, each with independent preconditions, target lookup, foreground lease, action, restoration, and postconditions.",
+  description: "Run up to 50 declarative Observe → Act → Verify commands, each with independent preconditions, target lookup, foreground lease, action, restoration, and postconditions.",
   inputSchema: workflowInput,
   annotations
 }, async (workflow) => {
-  const report = await runner.executeWorkflow(workflow);
+  const report = await orchestrator.executeWorkflow(workflow);
   return resultWithText(report, report.ok ? `Web workflow '${workflow.id}' completed with ${report.commands.length} verified command(s).` : `Web workflow failed at ${report.error?.stage}: ${report.error?.message}`);
 });
 
@@ -222,7 +225,7 @@ async function executeOperationNodes({ id, label, browserBundleIdentifier, nodes
     await bridge.waitForConnection(30_000);
   }
   if (nodes.every((node) => node.type === "command")) {
-    const report = await runner.executeWorkflow({
+    const report = await orchestrator.executeWorkflow({
       id,
       label,
       browserBundleIdentifier,
@@ -237,7 +240,7 @@ async function executeOperationNodes({ id, label, browserBundleIdentifier, nodes
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index];
     if (node.type === "command") {
-      const commandReport = await runner.executeWorkflow({
+      const commandReport = await orchestrator.executeWorkflow({
         id: `${id}-command-${index + 1}`,
         label: `${label} · ${node.operation}`,
         browserBundleIdentifier,
@@ -299,14 +302,14 @@ async function executeOperationNodes({ id, label, browserBundleIdentifier, nodes
 }
 
 async function executeReader(node, { browserBundleIdentifier }) {
-  if (node.handler === "eye.observe") return await bridge.request("eye.observe", node.input || {}, 10_000);
+  if (node.handler === "observer.observe") return await bridge.request("observer.observe", node.input || {}, 10_000);
   const handler = registeredReaders.get(node.handler);
   if (handler) return await handler(node.input || {}, {
     browserBundleIdentifier,
     bridge,
-    hand,
+    inputDriver,
     catalog,
-    runner,
+    orchestrator,
     projectRoot: resolvedProjectRoot,
     logger
   });
@@ -316,19 +319,19 @@ async function executeReader(node, { browserBundleIdentifier }) {
 return {
   server,
   bridge,
-  hand,
+  inputDriver,
   catalog,
-  runner,
+  orchestrator,
   projectRoot: resolvedProjectRoot,
   bridgePort: resolvedBridgePort
 };
 }
 
-export async function startOperatorServer(options = {}) {
-  const runtime = await createOperatorServer(options);
+export async function startOrchestratorServer(options = {}) {
+  const runtime = await createOrchestratorServer(options);
   await runtime.bridge.start();
   await runtime.server.connect(options.transport || new StdioServerTransport());
-  (options.logger || log)("info", "web_operator_mcp_started", {
+  (options.logger || log)("info", "command_orchestrator_mcp_started", {
     bridgePort: runtime.bridgePort,
     projectRoot: runtime.projectRoot,
     customReaderCount: Object.keys(options.readerHandlers || {}).length

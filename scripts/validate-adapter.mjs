@@ -13,11 +13,11 @@ for (const key of ["id", "displayName", "version"]) {
 }
 for (const configuredPath of [
   ...(adapter.extension?.descriptors || []),
-  ...(adapter.operator?.operationDirectories || [])
+  ...(adapter.orchestrator?.operationDirectories || [])
 ]) {
   try { await access(path.resolve(directory, configuredPath)); } catch { errors.push(`missing adapter path: ${configuredPath}`); }
 }
-for (const value of adapter.operator?.allowedOpenUrls || []) {
+for (const value of adapter.orchestrator?.allowedOpenUrls || []) {
   const url = new URL(value);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) errors.push(`unsafe allowedOpenUrl: ${value}`);
 }

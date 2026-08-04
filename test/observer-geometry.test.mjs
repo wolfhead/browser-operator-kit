@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { screenPointFromPageGeometry } from "../extension/eye/geometry.js";
+import { screenPointFromPageGeometry } from "../extension/observer/geometry.js";
 
 test("page geometry maps to a native screen point at the current Chrome zoom", () => {
   assert.deepEqual(screenPointFromPageGeometry({

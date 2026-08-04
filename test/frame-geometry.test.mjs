@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildFrameOffsets, chooseBestScrollableTarget, chooseBestTarget } from "../extension/eye/frame-geometry.js";
+import { buildFrameOffsets, chooseBestScrollableTarget, chooseBestTarget } from "../extension/observer/frame-geometry.js";
 
 test("frame offsets map a unique child-frame URL into top viewport coordinates", () => {
   const offsets = buildFrameOffsets([

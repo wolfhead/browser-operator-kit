@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "web-operator-demo",
+  "id": "browser-operator-demo",
   "version": "1.0.0",
   "match": {
     "origins": ["http://127.0.0.1:8765", "http://localhost:8765"],
@@ -11,7 +11,7 @@
       "name": "demo.page",
       "priority": 100,
       "all": [
-        { "kind": "exists", "selector": "[data-automation-page='eye-hand-fixture']" }
+        { "kind": "exists", "selector": "[data-automation-page='observe-act-verify-fixture']" }
       ]
     }
   ],

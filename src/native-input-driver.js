@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTION_TYPES = new Set(["moveClick", "scroll", "typeText"]);
 
-export class NativeInputController {
+export class NativeInputDriver {
   constructor({
     projectRoot,
     platform = process.platform,
@@ -143,7 +143,7 @@ export class NativeInputController {
   async beginForegroundLease({ bundleIdentifier, activateIfNeeded = true }) {
     const before = await this.status();
     if (!before.available || before.accessibilityPostEventAccess !== true) {
-      throw new Error("Native Hand cannot acquire a foreground lease without Accessibility access.");
+      throw new Error("Native Input Driver cannot acquire a foreground lease without Accessibility access.");
     }
     const targetBundleIdentifier = String(bundleIdentifier ?? "").trim();
     const alreadyFrontmost = before.frontmostBundleIdentifier === targetBundleIdentifier;

@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BridgeServer } from "../src/bridge-server.js";
-import { NativeInputController } from "../src/native-input-controller.js";
+import { NativeInputDriver } from "../src/native-input-driver.js";
 import { OperationCatalog } from "../src/operation-catalog.js";
 import { findProjectRoot } from "../src/project-root.js";
-import { WebCommandRunner } from "../src/web-command-runner.js";
+import { CommandOrchestrator } from "../src/command-orchestrator.js";
 
 const projectRoot = await findProjectRoot(path.dirname(fileURLToPath(import.meta.url)));
 const options = parseArguments(process.argv.slice(2));
@@ -17,14 +17,14 @@ const workflowDefinition = JSON.parse(await readFile(workflowPath, "utf8"));
 const workflow = await expandNamedWorkflow(workflowDefinition);
 const log = (level, event, fields = {}) => process.stderr.write(`${JSON.stringify({ timestamp: new Date().toISOString(), level, event, ...fields })}\n`);
 const bridge = new BridgeServer({ port: 38493, logger: log });
-const hand = new NativeInputController({ projectRoot, logger: log });
-const runner = new WebCommandRunner({ bridge, hand, logger: log });
+const inputDriver = new NativeInputDriver({ projectRoot, logger: log });
+const orchestrator = new CommandOrchestrator({ bridge, inputDriver, logger: log });
 
 let report;
 try {
   await bridge.start();
   await bridge.waitForConnection(75_000);
-  report = await runner.executeWorkflow(workflow);
+  report = await orchestrator.executeWorkflow(workflow);
 } catch (error) {
   report = {
     ok: false,

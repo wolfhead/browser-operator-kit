@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WebCommandRunner } from "../src/web-command-runner.js";
+import { CommandOrchestrator } from "../src/command-orchestrator.js";
 
 test("web command runs page check, target lookup, foreground lease, action, verification, and release", async () => {
   const observations = [
@@ -10,9 +10,9 @@ test("web command runs page check, target lookup, foreground lease, action, veri
   ];
   const calls = [];
   const bridge = fakeBridge(observations, calls);
-  const hand = fakeHand(calls);
-  const runner = new WebCommandRunner({ bridge, hand });
-  const report = await runner.executeWorkflow({
+  const inputDriver = fakeInputDriver(calls);
+  const orchestrator = new CommandOrchestrator({ bridge, inputDriver });
+  const report = await orchestrator.executeWorkflow({
     id: "test-workflow",
     label: "Test workflow",
     browserBundleIdentifier: "com.google.Chrome",
@@ -41,12 +41,12 @@ test("web command runs page check, target lookup, foreground lease, action, veri
 
 test("web command releases foreground lease when postcondition fails", async () => {
   const calls = [];
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([observation(""), observation("", true), observation("wrong", true)], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     postconditionAttempts: 1
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "failure-workflow",
     label: "Failure workflow",
     browserBundleIdentifier: "com.google.Chrome",
@@ -65,18 +65,18 @@ test("web command releases foreground lease when postcondition fails", async () 
 
 test("web command waits for an asynchronous postcondition before reporting success", async () => {
   const calls = [];
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([
       observation(""),
       observation("", true),
       observation("pending", true),
       observation("expected", true)
     ], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     postconditionAttempts: 2,
     postconditionDelayMs: 0
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "delayed-postcondition",
     label: "Delayed postcondition",
     browserBundleIdentifier: "com.google.Chrome",
@@ -89,7 +89,7 @@ test("web command waits for an asynchronous postcondition before reporting succe
     }]
   });
   assert.equal(report.ok, true);
-  assert.equal(calls.filter((call) => call.type === "bridge" && call.command === "eye.observe").length, 4);
+  assert.equal(calls.filter((call) => call.type === "bridge" && call.command === "observer.observe").length, 4);
 });
 
 test("web command treats the previous page as transient while navigation completes", async () => {
@@ -97,12 +97,12 @@ test("web command treats the previous page as transient while navigation complet
   const previousPage = observation("", true);
   const resultPage = observation("", true);
   resultPage.page = "detail";
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([observation(""), observation("", true), previousPage, resultPage], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     postconditionDelayMs: 0
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "delayed-navigation",
     label: "Delayed navigation",
     browserBundleIdentifier: "com.google.Chrome",
@@ -121,17 +121,17 @@ test("web command treats the previous page as transient while navigation complet
 test("web command applies per-command initial and polling delays", async () => {
   const calls = [];
   const delays = [];
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([
       observation(""),
       observation("", true),
       observation("pending", true),
       observation("expected", true)
     ], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     sleep: async (milliseconds) => delays.push(milliseconds)
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "verification-policy",
     label: "Verification policy",
     browserBundleIdentifier: "com.google.Chrome",
@@ -152,11 +152,11 @@ test("web command rejects an unexpected result page", async () => {
   const calls = [];
   const final = observation("expected", true);
   final.page = "verification";
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([observation(""), observation("", true), final], calls),
-    hand: fakeHand(calls)
+    inputDriver: fakeInputDriver(calls)
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "result-page-failure",
     label: "Result page failure",
     browserBundleIdentifier: "com.google.Chrome",
@@ -177,8 +177,8 @@ test("web command refuses an occluded target", async () => {
   const calls = [];
   const blocked = observation("");
   blocked.fields.query.occluded = true;
-  const runner = new WebCommandRunner({ bridge: fakeBridge([blocked], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([blocked], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "occluded-target",
     label: "Occluded target",
     browserBundleIdentifier: "com.google.Chrome",
@@ -203,8 +203,8 @@ test("web command resolves a registered collection item by index", async () => {
   actionable.collections.items = { items: [collectionItem(10), collectionItem(20)] };
   const after = observation("", true);
   after.page = "detail";
-  const runner = new WebCommandRunner({ bridge: fakeBridge([before, actionable, after], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([before, actionable, after], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "collection-target",
     label: "Collection target",
     browserBundleIdentifier: "com.google.Chrome",
@@ -231,8 +231,8 @@ test("web command resolves a registered collection item by stable identity", asy
   actionable.collections.items = structuredClone(before.collections.items);
   const after = observation("", true);
   after.page = "detail";
-  const runner = new WebCommandRunner({ bridge: fakeBridge([before, actionable, after], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([before, actionable, after], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "collection-identity",
     label: "Collection identity",
     browserBundleIdentifier: "com.google.Chrome",
@@ -254,8 +254,8 @@ test("web command resolves collection indices in postconditions", async () => {
   const actionable = observation("", true);
   const after = observation("", true);
   after.collections.items = { items: [{ visible: false }, { visible: true }] };
-  const runner = new WebCommandRunner({ bridge: fakeBridge([before, actionable, after], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([before, actionable, after], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "collection-postcondition",
     label: "Collection postcondition",
     browserBundleIdentifier: "com.google.Chrome",
@@ -276,8 +276,8 @@ test("web command supports threshold assertions for loaded collections", async (
   const actionable = observation("", true);
   const after = observation("", true);
   after.collections.items = { count: 3, items: [] };
-  const runner = new WebCommandRunner({ bridge: fakeBridge([before, actionable, after], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([before, actionable, after], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "collection-threshold",
     label: "Collection threshold",
     browserBundleIdentifier: "com.google.Chrome",
@@ -292,7 +292,7 @@ test("web command supports threshold assertions for loaded collections", async (
   assert.equal(report.ok, true);
 });
 
-test("idempotent web command skips Hand when postconditions already pass", async () => {
+test("idempotent web command skips native input when postconditions already pass", async () => {
   const calls = [];
   const alreadyDone = observation("");
   alreadyDone.controls.favorite = {
@@ -304,8 +304,8 @@ test("idempotent web command skips Hand when postconditions already pass", async
     screenPoint: { x: 300, y: 220 },
     read: { text: "已收藏" }
   };
-  const runner = new WebCommandRunner({ bridge: fakeBridge([alreadyDone], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([alreadyDone], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "ensure-favorite",
     label: "Ensure favorite",
     browserBundleIdentifier: "com.google.Chrome",
@@ -333,8 +333,8 @@ test("web command verifies that a registered value changed from its pre-action b
   actionable.values.identity = { found: true, read: { url: "https://example.test/detail/a" } };
   const after = observation("", true);
   after.values.identity = { found: true, read: { url: "https://example.test/detail/b" } };
-  const runner = new WebCommandRunner({ bridge: fakeBridge([before, actionable, after], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([before, actionable, after], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "changed-identity",
     label: "Changed identity",
     browserBundleIdentifier: "com.google.Chrome",
@@ -357,12 +357,12 @@ test("web command rejects a changed assertion when the value stays the same", as
   actionable.values.identity = structuredClone(before.values.identity);
   const after = observation("", true);
   after.values.identity = structuredClone(before.values.identity);
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([before, actionable, after], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     postconditionAttempts: 1
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "unchanged-identity",
     label: "Unchanged identity",
     browserBundleIdentifier: "com.google.Chrome",
@@ -378,18 +378,18 @@ test("web command rejects a changed assertion when the value stays the same", as
   assert.equal(report.error.code, "POSTCONDITION_FAILED");
 });
 
-test("bootstrap web command opens an exactly allowed URL and verifies it with Eye", async () => {
+test("bootstrap web command opens an exactly allowed URL and verifies it with Page Observer", async () => {
   const calls = [];
   const unrelatedPage = observation("", false);
   unrelatedPage.page = "unregistered";
   const searchPage = observation("", true);
   searchPage.page = "demo.page";
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([unrelatedPage, searchPage], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     allowedOpenUrls: ["https://example.test/start"]
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "open-demo-page",
     label: "Open demo page",
     browserBundleIdentifier: "com.google.Chrome",
@@ -409,12 +409,12 @@ test("bootstrap web command opens an exactly allowed URL and verifies it with Ey
   assert.equal(calls.some((call) => call.type === "action"), false);
 });
 
-test("bootstrap web command is idempotent when Eye already reports the expected page", async () => {
+test("bootstrap web command is idempotent when Page Observer already reports the expected page", async () => {
   const calls = [];
   const searchPage = observation("", false);
   searchPage.page = "demo.page";
-  const runner = new WebCommandRunner({ bridge: fakeBridge([searchPage], calls), hand: fakeHand(calls) });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge: fakeBridge([searchPage], calls), inputDriver: fakeInputDriver(calls) });
+  const report = await orchestrator.executeWorkflow({
     id: "ensure-demo-page",
     label: "Ensure demo page",
     browserBundleIdentifier: "com.google.Chrome",
@@ -436,11 +436,11 @@ test("scrollUntil can emit upward wheel input and verify the top state", async (
   const actionable = scrollObservation({ scrollTop: 600, focused: true });
   const afterScroll = scrollObservation({ scrollTop: 0, focused: true });
   const final = scrollObservation({ scrollTop: 0, focused: true });
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([before, actionable, afterScroll, final], calls),
-    hand: fakeHand(calls)
+    inputDriver: fakeInputDriver(calls)
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "scroll-up",
     label: "Scroll up",
     browserBundleIdentifier: "com.google.Chrome",
@@ -472,13 +472,13 @@ test("workflow briefly leases browser focus to wake a cold extension bridge", as
     if (connectionAttempt === 1) throw new Error("cold bridge");
     return { connected: true };
   };
-  const hand = fakeHand(calls);
-  hand.activateBrowser = async (bundleIdentifier) => {
+  const inputDriver = fakeInputDriver(calls);
+  inputDriver.activateBrowser = async (bundleIdentifier) => {
     calls.push({ type: "activateBrowser", bundleIdentifier });
     return { activated: true };
   };
-  const runner = new WebCommandRunner({ bridge, hand, initialBridgeConnectionWaitMs: 3_456 });
-  const report = await runner.executeWorkflow({
+  const orchestrator = new CommandOrchestrator({ bridge, inputDriver, initialBridgeConnectionWaitMs: 3_456 });
+  const report = await orchestrator.executeWorkflow({
     id: "cold-start",
     label: "Cold start",
     browserBundleIdentifier: "com.google.Chrome",
@@ -503,12 +503,12 @@ test("web command polls a temporarily unavailable target before acquiring foregr
   loading.fields.query.found = false;
   loading.fields.query.coordinateReady = false;
   loading.fields.query.screenPoint = null;
-  const runner = new WebCommandRunner({
+  const orchestrator = new CommandOrchestrator({
     bridge: fakeBridge([loading, observation(""), observation("", true), observation("", true)], calls),
-    hand: fakeHand(calls),
+    inputDriver: fakeInputDriver(calls),
     sleep: async (milliseconds) => delays.push(milliseconds)
   });
-  const report = await runner.executeWorkflow({
+  const report = await orchestrator.executeWorkflow({
     id: "target-readiness",
     label: "Target readiness",
     browserBundleIdentifier: "com.google.Chrome",
@@ -577,13 +577,13 @@ function fakeBridge(observations, calls) {
   return {
     async request(command, params) {
       calls.push({ type: "bridge", command, params });
-      if (command === "eye.observe") return observations.shift();
+      if (command === "observer.observe") return observations.shift();
       return { ok: true };
     }
   };
 }
 
-function fakeHand(calls) {
+function fakeInputDriver(calls) {
   return {
     async beginForegroundLease({ bundleIdentifier }) {
       calls.push({ type: "lease", event: "begin" });

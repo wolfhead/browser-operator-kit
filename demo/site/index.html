@@ -20,10 +20,10 @@
       #details-footer { padding: 18px; border: 1px solid #eccb8c; border-radius: 10px; color: #71511b; background: #fff8e8; }
     </style>
   </head>
-  <body data-automation-page="eye-hand-fixture">
+  <body data-automation-page="observe-act-verify-fixture">
     <main>
       <p>WEB OPERATOR KIT DEMO</p>
-      <h1>Eye / Hand 协调测试</h1>
+      <h1>Observe → Act → Verify 协调测试</h1>
       <div class="search">
         <input id="keywords" placeholder="输入测试关键词" autocomplete="off">
         <button id="apply-search" type="button">应用</button>
@@ -31,9 +31,9 @@
       <div id="search-result" aria-live="polite">尚未应用关键词</div>
       <div id="details-scroll" tabindex="0">
         <section class="block"><h2>区块一</h2><p>用于验证滚动目标和坐标回传。</p></section>
-        <section class="block"><h2>区块二</h2><p>滚动过程应由 Hand 发送真实滚轮事件。</p></section>
-        <section class="block"><h2>区块三</h2><p>Eye 应在每次滚动后重新读取剩余距离。</p></section>
-        <footer id="details-footer">本地验收 footer：Eye 识别到这里即说明滚动覆盖完整。</footer>
+        <section class="block"><h2>区块二</h2><p>滚动过程应由 Native Input Driver 发送真实滚轮事件。</p></section>
+        <section class="block"><h2>区块三</h2><p>Page Observer 应在每次滚动后重新读取剩余距离。</p></section>
+        <footer id="details-footer">本地验收 footer：Page Observer 识别到这里即说明滚动覆盖完整。</footer>
       </div>
     </main>
     <script>

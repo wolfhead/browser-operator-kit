@@ -10,11 +10,11 @@ await bridge.start();
 
 try {
   await bridge.waitForConnection(75_000);
-  const status = await bridge.request("eye.status", {}, 5_000);
+  const status = await bridge.request("observer.status", {}, 5_000);
   const activeUrl = String(status.activeTab?.url || "");
   if (!/^https?:\/\//.test(activeUrl)) throw new Error(`Inspector acceptance requires an HTTP(S) page, received '${activeUrl}'.`);
 
-  const snapshot = await bridge.request("eye.inspect.snapshot", {
+  const snapshot = await bridge.request("observer.inspect.snapshot", {
     rootSelector: "html",
     maxDepth: 2,
     maxNodes: 300,
@@ -22,18 +22,18 @@ try {
     includeGeometry: true,
     allFrames: true
   }, 30_000);
-  const query = await bridge.request("eye.inspect.query", {
+  const query = await bridge.request("observer.inspect.query", {
     selector: "html",
     selectorType: "css",
     includeText: false,
     ancestorDepth: 0,
     allFrames: true
   }, 30_000);
-  const mutationEvaluation = await bridge.request("eye.inspect.evaluate", {
+  const mutationEvaluation = await bridge.request("observer.inspect.evaluate", {
     world: "MAIN",
-    source: "(() => { const root = document.documentElement; root.dataset.eyeInspectorAcceptance = 'ok'; const observed = root.dataset.eyeInspectorAcceptance; delete root.dataset.eyeInspectorAcceptance; return { observed, cleaned: !root.hasAttribute('data-eye-inspector-acceptance') }; })()"
+    source: "(() => { const root = document.documentElement; root.dataset.observerInspectorAcceptance = 'ok'; const observed = root.dataset.observerInspectorAcceptance; delete root.dataset.observerInspectorAcceptance; return { observed, cleaned: !root.hasAttribute('data-observer-inspector-acceptance') }; })()"
   }, 30_000);
-  const mainEvaluation = await bridge.request("eye.inspect.evaluate", {
+  const mainEvaluation = await bridge.request("observer.inspect.evaluate", {
     world: "MAIN",
     source: "({ origin: location.origin, hasDocumentElement: Boolean(document.documentElement) })"
   }, 30_000);

@@ -1,7 +1,7 @@
-export class WebCommandRunner {
+export class CommandOrchestrator {
   constructor({
     bridge,
-    hand,
+    inputDriver,
     logger = () => {},
     allowedOpenUrls = [],
     initialBridgeConnectionWaitMs = 8_000,
@@ -10,7 +10,7 @@ export class WebCommandRunner {
     sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))
   }) {
     this.bridge = bridge;
-    this.hand = hand;
+    this.inputDriver = inputDriver;
     this.logger = logger;
     this.allowedOpenUrls = new Set(allowedOpenUrls.map(normalizeAllowedUrl));
     this.initialBridgeConnectionWaitMs = boundedInteger(initialBridgeConnectionWaitMs, 1_000, 30_000, 8_000);
@@ -67,17 +67,17 @@ export class WebCommandRunner {
 
     let wakeLease = null;
     try {
-      wakeLease = await this.hand.beginForegroundLease({
+      wakeLease = await this.inputDriver.beginForegroundLease({
         bundleIdentifier: browserBundleIdentifier,
         activateIfNeeded: true
       });
-      if (typeof this.hand.activateBrowser === "function") {
-        await this.hand.activateBrowser(browserBundleIdentifier);
+      if (typeof this.inputDriver.activateBrowser === "function") {
+        await this.inputDriver.activateBrowser(browserBundleIdentifier);
       }
       await this.bridge.waitForConnection(20_000);
     } finally {
       if (wakeLease) {
-        const release = await this.hand.endForegroundLease(wakeLease.leaseId);
+        const release = await this.inputDriver.endForegroundLease(wakeLease.leaseId);
         this.logger("info", "extension_bridge_wake_finished", {
           browserBundleIdentifier,
           restored: release.restored,
@@ -166,7 +166,7 @@ export class WebCommandRunner {
 
       await this.dashboardUpdate(command, "临时切换到浏览器", "正在获取前台租约。 ");
       const foregroundPolicy = normalizeForegroundPolicy(command.foregroundPolicy);
-      lease = await this.hand.beginForegroundLease({
+      lease = await this.inputDriver.beginForegroundLease({
         bundleIdentifier: browserBundleIdentifier,
         activateIfNeeded: foregroundPolicy.activate === "ifNeeded"
       });
@@ -182,7 +182,7 @@ export class WebCommandRunner {
       await this.dashboardUpdate(command, "执行操作", describeAction(command.action));
       const actionReceipts = await this.performAction(command, actionableObservation, lease);
 
-      await this.dashboardUpdate(command, "验证结果", "正在通过 Eye 读取操作后的页面状态。 ");
+      await this.dashboardUpdate(command, "验证结果", "正在通过 Page Observer 读取操作后的页面状态。");
       const finalObservation = await this.waitForPostconditions(command, actionableObservation);
 
       commandResult = {
@@ -220,7 +220,7 @@ export class WebCommandRunner {
       throw error;
     } finally {
       if (lease) {
-        const release = await this.hand.endForegroundLease(lease.leaseId);
+        const release = await this.inputDriver.endForegroundLease(lease.leaseId);
         this.logger("info", "web_command_foreground_released", {
           commandId: command.id,
           restored: release.restored,
@@ -254,14 +254,14 @@ export class WebCommandRunner {
       if (!this.allowedOpenUrls.has(url)) {
         throw new WebCommandError("ACTION_FAILED", "action", `URL '${url}' is not in the exact bootstrap allowlist.`);
       }
-      return [await this.hand.openUrl(url, lease.targetBundleIdentifier)];
+      return [await this.inputDriver.openUrl(url, lease.targetBundleIdentifier)];
     }
     const target = getRegisteredTarget(observation, command.target);
     if (command.action.type === "click") {
-      return [await this.executeHandAction({ type: "moveClick", point: target.screenPoint }, observation, lease)];
+      return [await this.executeInputAction({ type: "moveClick", point: target.screenPoint }, observation, lease)];
     }
     if (command.action.type === "paste") {
-      return [await this.executeHandAction({ type: "typeText", point: target.screenPoint, text: command.action.text }, observation, lease)];
+      return [await this.executeInputAction({ type: "typeText", point: target.screenPoint, text: command.action.text }, observation, lease)];
     }
     if (command.action.type === "scrollUntil") {
       const receipts = [];
@@ -279,7 +279,7 @@ export class WebCommandRunner {
           ? scrollTarget.recommendedDeltaY
           : boundedInteger(command.action.deltaY, 80, 2_400, scrollTarget.recommendedDeltaY);
         const deltaY = direction === "up" ? -magnitude : magnitude;
-        receipts.push(await this.executeHandAction({ type: "scroll", point: scrollTarget.screenPoint, deltaY }, current, lease));
+        receipts.push(await this.executeInputAction({ type: "scroll", point: scrollTarget.screenPoint, deltaY }, current, lease));
         current = await this.observe();
         this.assertFreshFocusedObservation(current, lease);
       }
@@ -358,9 +358,9 @@ export class WebCommandRunner {
     throw lastError || new WebCommandError("POSTCONDITION_FAILED", "postcondition", "Postconditions were not satisfied.");
   }
 
-  async executeHandAction(action, observation, lease) {
+  async executeInputAction(action, observation, lease) {
     this.assertFreshFocusedObservation(observation, lease);
-    return await this.hand.execute({ ...action, seed: Math.floor(Math.random() * 1_000_000_000) });
+    return await this.inputDriver.execute({ ...action, seed: Math.floor(Math.random() * 1_000_000_000) });
   }
 
   assertPageAndTargets(observation, command, stage) {
@@ -382,7 +382,7 @@ export class WebCommandRunner {
 
   assertFreshFocusedObservation(observation, lease) {
     if (Date.now() > observation.expiresAt) {
-      throw new WebCommandError("OBSERVATION_STALE", "action", "Eye observation expired before Hand execution.");
+      throw new WebCommandError("OBSERVATION_STALE", "action", "Page Observer result expired before native input execution.");
     }
     if (observation.window?.focused !== true) {
       throw new WebCommandError("FOREGROUND_FAILED", "foreground", "The observed browser window is not focused.");
@@ -393,7 +393,7 @@ export class WebCommandRunner {
   }
 
   async observe() {
-    return await this.bridge.request("eye.observe", {}, 10_000);
+    return await this.bridge.request("observer.observe", {}, 10_000);
   }
 
   async dashboardUpdate(command, step, message) {
@@ -439,7 +439,7 @@ function getRegisteredTarget(observation, target, throwWhenMissing = true) {
   const registration = observation?.[target.scope]?.[target.name] ?? null;
   const value = target.scope === "collections" ? resolveCollectionItem(registration, target) : registration;
   if (!value && throwWhenMissing) {
-    throw new WebCommandError("TARGET_NOT_FOUND", "target", `Registered target '${target.scope}.${target.name}' was not returned by Eye.`);
+    throw new WebCommandError("TARGET_NOT_FOUND", "target", `Registered target '${target.scope}.${target.name}' was not returned by Page Observer.`);
   }
   return value;
 }

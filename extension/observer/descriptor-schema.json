@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://browser-operator-kit.local/eye-descriptor.schema.json",
-  "title": "Web Eye site descriptor",
+  "$id": "https://browser-operator-kit.local/observer-descriptor.schema.json",
+  "title": "Page Observer site descriptor",
   "type": "object",
   "required": ["schemaVersion", "id", "version", "match", "pages", "fields", "controls", "values", "collections", "scrollables"],
   "properties": {

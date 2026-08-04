@@ -32,12 +32,12 @@ try {
   await run(process.execPath, [path.join(projectRoot, "scripts", "build-mcp-server.mjs")]);
   const chromePath = await findChromeForTesting();
   await ensureNoChromeForTestingProcess();
-  const acceptance = spawn(process.execPath, [path.join(projectRoot, "scripts", "run-demo-operator.mjs")], {
+  const acceptance = spawn(process.execPath, [path.join(projectRoot, "scripts", "run-demo-orchestrator.mjs")], {
     cwd: projectRoot,
     env: {
       ...process.env,
-      WEB_OPERATOR_ACCEPTANCE_BRIDGE_PORT: "38494",
-      WEB_OPERATOR_DEMO_URL: fixtureUrl
+      WEB_ORCHESTRATOR_ACCEPTANCE_BRIDGE_PORT: "38494",
+      WEB_ORCHESTRATOR_DEMO_URL: fixtureUrl
     },
     stdio: "inherit"
   });
@@ -169,7 +169,7 @@ async function writeRuntimeAdapter({ fixturePort, fixtureUrl }) {
       hostPermissions: [`http://127.0.0.1:${fixturePort}/*`],
       bridgeUrls: ["ws://127.0.0.1:38494"]
     },
-    operator: {
+    orchestrator: {
       operationDirectories: [path.join(projectRoot, "demo", "adapter", "operations")],
       allowedOpenUrls: [fixtureUrl]
     }

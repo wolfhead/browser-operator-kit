@@ -32,7 +32,7 @@ export async function findProjectRoot({ cwd = process.cwd(), moduleUrl = import.
       current = parent;
     }
   }
-  throw new Error("Could not locate the Web Automation Eye / Hand project or plugin root.");
+  throw new Error("Could not locate the Browser Operator Kit project or plugin root.");
 }
 
 async function isFrameworkProject(file) {

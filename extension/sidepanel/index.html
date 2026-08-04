@@ -3,15 +3,15 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Web Automation Eye</title>
+    <title>Web Automation Page Observer</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <main class="shell">
       <header class="hero">
-        <p class="eyebrow">WEB AUTOMATION EYE</p>
+        <p class="eyebrow">PAGE OBSERVER</p>
         <h1>自动化状态板</h1>
-        <p class="intro">插件只读取页面并展示状态；所有鼠标、键盘与滚轮操作由独立 Hand 执行。</p>
+        <p class="intro">插件只读取页面并展示状态；所有鼠标、键盘与滚轮操作由独立 Native Input Driver 执行。</p>
       </header>
 
       <section id="automation-banner" class="automation-banner status-idle" aria-label="自动化运行状态">
@@ -28,9 +28,9 @@
       <section class="safety" aria-label="职责边界">
         <span class="safety-dot" aria-hidden="true"></span>
         <div>
-          <strong>Eye 只读</strong>
+          <strong>Page Observer 只读</strong>
           <p>描述文件负责识别页面、命名控件、读取值与滚动状态。此面板不点击、不输入、不滚动。</p>
-          <p id="bridge-state">正在检查本地 Eye / Operator 桥。</p>
+          <p id="bridge-state">正在检查本地 Page Observer / Command Orchestrator 桥。</p>
         </div>
       </section>
 

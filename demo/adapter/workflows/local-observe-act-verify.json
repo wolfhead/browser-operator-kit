@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "local-eye-hand-acceptance",
-  "label": "本地 Eye / Hand 原子命令验收",
+  "id": "local-observe-act-verify-acceptance",
+  "label": "本地 Observe → Act → Verify 原子命令验收",
   "browserBundleIdentifier": "com.google.chrome.for.testing",
   "commands": [
     {

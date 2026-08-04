@@ -4,36 +4,39 @@ import { z } from "zod";
 import { BridgeServer, DEFAULT_BRIDGE_PORT } from "./bridge-server.js";
 import { log, parsePort, resultWithText } from "./mcp-utils.js";
 
-const bridgePort = parsePort(process.env.WEB_EYE_BRIDGE_PORT, DEFAULT_BRIDGE_PORT);
+const bridgePort = parsePort(
+  process.env.WEB_OBSERVER_BRIDGE_PORT ?? process.env.WEB_EYE_BRIDGE_PORT,
+  DEFAULT_BRIDGE_PORT
+);
 const bridge = new BridgeServer({ port: bridgePort, logger: log });
 const server = new McpServer(
-  { name: "web-eye", version: "1.0.0" },
-  { instructions: "Read page state through descriptor-driven Eye tools. Eye never clicks, types, scrolls, focuses a window, or claims that a Hand action succeeded. Observe again after every Hand action." }
+  { name: "page-observer", version: "1.0.0" },
+  { instructions: "Read page state through descriptor-driven Page Observer tools. The observer never clicks, types, scrolls, focuses a window, or claims that a native input action succeeded. Observe again after every action." }
 );
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 const dashboardWrite = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 const inspectorMutation = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
 
-server.registerTool("eye_status", {
-  title: "Check Web Eye status",
-  description: "Return the extension bridge, active tab, descriptor count, and Eye role.",
+server.registerTool("observer_status", {
+  title: "Check Page Observer status",
+  description: "Return the extension bridge, active tab, descriptor count, and observer role.",
   inputSchema: {}, annotations: { ...readOnly, idempotentHint: true }
 }, async () => {
   const bridgeStatus = bridge.status();
-  const extension = bridgeStatus.connected ? await bridge.request("eye.status", {}, 5_000) : null;
-  return resultWithText({ bridge: bridgeStatus, extension }, bridgeStatus.connected ? "Web Eye is connected." : "Web Eye is waiting for the Chrome extension.");
+  const extension = bridgeStatus.connected ? await bridge.request("observer.status", {}, 5_000) : null;
+  return resultWithText({ bridge: bridgeStatus, extension }, bridgeStatus.connected ? "Page Observer is connected." : "Page Observer is waiting for the Chrome extension.");
 });
 
-server.registerTool("eye_observe", {
+server.registerTool("observer_observe", {
   title: "Observe the active web page",
   description: "Read the registered page state, values, controls, geometry, and scroll metrics without changing the page.",
   inputSchema: {}, annotations: readOnly
 }, async () => {
-  const observation = await bridge.request("eye.observe", {}, 10_000);
+  const observation = await bridge.request("observer.observe", {}, 10_000);
   return resultWithText(observation, `Observed '${observation.page}' with ${Object.keys(observation.fields || {}).length + Object.keys(observation.controls || {}).length + Object.keys(observation.scrollables || {}).length} registered targets.`);
 });
 
-server.registerTool("eye_inspect_snapshot", {
+server.registerTool("observer_inspect_snapshot", {
   title: "Inspect the active page DOM structure",
   description: "Return a bounded flat DOM snapshot from the active tab and its accessible frames. The result is ephemeral and is not written to the dashboard.",
   inputSchema: {
@@ -49,12 +52,12 @@ server.registerTool("eye_inspect_snapshot", {
   },
   annotations: readOnly
 }, async (input) => {
-  const result = await bridge.request("eye.inspect.snapshot", input, 30_000);
+  const result = await bridge.request("observer.inspect.snapshot", input, 30_000);
   const nodes = result.frames.reduce((count, frame) => count + Number(frame.result?.nodeCount || 0), 0);
   return resultWithText(result, `Inspected ${nodes} DOM nodes across ${result.frames.length} frame(s).`);
 });
 
-server.registerTool("eye_inspect_query", {
+server.registerTool("observer_inspect_query", {
   title: "Query the active page DOM",
   description: "Run a CSS, XPath, or text query in the active tab and return matching structure, geometry, ancestors, and optionally content. The result is ephemeral.",
   inputSchema: {
@@ -75,12 +78,12 @@ server.registerTool("eye_inspect_query", {
   },
   annotations: readOnly
 }, async (input) => {
-  const result = await bridge.request("eye.inspect.query", input, 30_000);
+  const result = await bridge.request("observer.inspect.query", input, 30_000);
   const matches = result.frames.reduce((count, frame) => count + Number(frame.result?.matchCount || 0), 0);
   return resultWithText(result, `Found ${matches} match(es) across ${result.frames.length} frame(s).`);
 });
 
-server.registerTool("eye_inspect_evaluate", {
+server.registerTool("observer_inspect_evaluate", {
   title: "Execute JavaScript in the active page",
   description: "Explicitly execute arbitrary JavaScript in the active tab. The script may read runtime objects, mutate DOM, send requests, or trigger page behavior. Defaults to the top frame and MAIN page world. ISOLATED is exposed for diagnostics but string evaluation is normally rejected there by Manifest V3 extension CSP.",
   inputSchema: {
@@ -94,18 +97,18 @@ server.registerTool("eye_inspect_evaluate", {
   },
   annotations: inspectorMutation
 }, async (input) => {
-  const result = await bridge.request("eye.inspect.evaluate", input, 30_000);
+  const result = await bridge.request("observer.inspect.evaluate", input, 30_000);
   const failures = result.frames.filter((frame) => frame.result?.ok === false).length;
   return resultWithText(result, failures ? `JavaScript completed with ${failures} frame error(s).` : `JavaScript completed in ${result.frames.length} frame(s).`);
 });
 
-server.registerTool("eye_reload_extension", {
-  title: "Reload the Web Eye extension",
+server.registerTool("observer_reload_extension", {
+  title: "Reload the Page Observer extension",
   description: "Ask the running extension to reload itself after extension files change. This does not touch the observed page.",
   inputSchema: {}, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
 }, async () => {
-  const result = await bridge.request("eye.reload", {}, 5_000);
-  return resultWithText(result, "Scheduled a Web Eye extension reload.");
+  const result = await bridge.request("observer.reload", {}, 5_000);
+  return resultWithText(result, "Scheduled a Page Observer extension reload.");
 });
 
 server.registerTool("dashboard_begin", {
@@ -121,10 +124,10 @@ server.registerTool("dashboard_update", {
 }, async (input) => resultWithText(await bridge.request("dashboard.update", input, 5_000), "Updated the visible automation status."));
 
 server.registerTool("dashboard_report_action", {
-  title: "Report a Hand action receipt",
-  description: "Display an independently produced Hand action receipt in the Side Panel.",
+  title: "Report a native input action receipt",
+  description: "Display an independently produced Native Input Driver action receipt in the Side Panel.",
   inputSchema: { actionId: z.string().max(120).default(""), action: z.string().min(1).max(80), status: z.enum(["started", "completed", "failed"]).default("completed"), message: z.string().max(300).default("") }, annotations: dashboardWrite
-}, async (input) => resultWithText(await bridge.request("dashboard.action", input, 5_000), "Reported the Hand action to the dashboard."));
+}, async (input) => resultWithText(await bridge.request("dashboard.action", input, 5_000), "Reported the native input action to the dashboard."));
 
 server.registerTool("dashboard_end", {
   title: "End a visible automation run",
@@ -134,4 +137,4 @@ server.registerTool("dashboard_end", {
 
 await bridge.start();
 await server.connect(new StdioServerTransport());
-log("info", "web_eye_mcp_started", { bridgePort });
+log("info", "page_observer_mcp_started", { bridgePort });

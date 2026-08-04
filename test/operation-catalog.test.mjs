@@ -48,7 +48,7 @@ test("operation catalog expands registered readers and mixed command-reader comp
   assert.deepEqual(reader.nodes, [{
     type: "reader",
     operation: "demo.state.observe",
-    handler: "eye.observe",
+    handler: "observer.observe",
     input: {}
   }]);
 

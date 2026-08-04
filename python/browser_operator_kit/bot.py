@@ -20,7 +20,7 @@ class OperationBot:
         stderr_listener: Callable[[str], None] | None = None,
     ) -> "OperationBot":
         root = Path(project_root).resolve()
-        server_command = list(command or ["node", str(root / "dist" / "server" / "web-operator-server.mjs")])
+        server_command = list(command or ["node", str(root / "dist" / "server" / "command-orchestrator-server.mjs")])
         client = StdioMcpClient(
             server_command,
             cwd=root,

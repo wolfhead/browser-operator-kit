@@ -21,7 +21,7 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "dashboard.changed") render(message.dashboard);
 });
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "session" && changes.webEyeDashboard?.newValue) render(changes.webEyeDashboard.newValue);
+  if (area === "session" && changes.pageObserverDashboard?.newValue) render(changes.pageObserverDashboard.newValue);
 });
 
 void initialize();
@@ -32,7 +32,7 @@ async function initialize() {
   await chrome.runtime.sendMessage({ type: "bridge.retry" }).catch(() => {});
   const current = await chrome.runtime.sendMessage({ type: "dashboard.get" });
   if (current?.ok) render(current.dashboard);
-  const observed = await chrome.runtime.sendMessage({ type: "eye.observe" });
+  const observed = await chrome.runtime.sendMessage({ type: "observer.observe" });
   if (!observed?.ok) {
     elements.url.textContent = observed?.error || "当前页面暂时无法观察。";
   }
@@ -48,7 +48,7 @@ async function probeLoopbackAccess() {
     elements.bridge.textContent = "正在等待 Chrome 的本地网络授权；请允许此扩展连接本机服务。";
     return;
   }
-  elements.bridge.textContent = "本地网络访问已就绪；Eye / Operator 服务启动后会自动重连。";
+  elements.bridge.textContent = "本地网络访问已就绪；Page Observer / Command Orchestrator 服务启动后会自动重连。";
 }
 
 function probeBridge(url) {

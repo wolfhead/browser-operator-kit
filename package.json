@@ -1,7 +1,7 @@
 {
   "name": "browser-operator-kit",
   "version": "1.0.0",
-  "description": "Descriptor-driven Chrome Eye, native macOS Hand, and guarded Eye-to-Hand-to-Eye web operations.",
+  "description": "Descriptor-driven page observation, native macOS input, and guarded Observe-Act-Verify web operations.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -27,14 +27,14 @@
   "exports": {
     ".": "./src/index.js",
     "./bridge-server": "./src/bridge-server.js",
-    "./eye-server": "./src/eye-server.js",
-    "./hand-server": "./src/hand-server.js",
+    "./observer-server": "./src/observer-server.js",
+    "./input-driver-server": "./src/input-driver-server.js",
     "./mcp-utils": "./src/mcp-utils.js",
-    "./native-input-controller": "./src/native-input-controller.js",
+    "./native-input-driver": "./src/native-input-driver.js",
     "./operation-catalog": "./src/operation-catalog.js",
-    "./operator-server": "./src/operator-server.js",
+    "./orchestrator-server": "./src/orchestrator-server.js",
     "./project-root": "./src/project-root.js",
-    "./web-command-runner": "./src/web-command-runner.js"
+    "./command-orchestrator": "./src/command-orchestrator.js"
   },
   "scripts": {
     "build": "npm run build:native && npm run build:mcp && npm run build:demo-extension",
@@ -45,7 +45,7 @@
     "check": "npm run build && npm run validate && npm run check:public && npm run check:syntax && npm test",
     "validate": "node scripts/validate-adapter.mjs demo/adapter/automation.adapter.json && node scripts/validate-manifest.mjs dist/demo-extension/manifest.json",
     "check:public": "node scripts/check-public-boundary.mjs",
-    "check:syntax": "node --check src/operator-server.js && node --check src/operator-server-entry.js && node --check src/web-command-runner.js && node --check src/native-input-controller.js && node --check src/operation-catalog.js && node --check scripts/build-extension.mjs && node --check extension/eye-service-worker.js && node --check extension/eye/engine.js && node --check extension/sidepanel/sidepanel.js && python3 -m py_compile python/browser_operator_kit/*.py",
+    "check:syntax": "node --check src/orchestrator-server.js && node --check src/orchestrator-server-entry.js && node --check src/command-orchestrator.js && node --check src/native-input-driver.js && node --check src/operation-catalog.js && node --check scripts/build-extension.mjs && node --check extension/observer-service-worker.js && node --check extension/observer/engine.js && node --check extension/sidepanel/sidepanel.js && python3 -m py_compile python/browser_operator_kit/*.py",
     "test": "node --test test/*.test.mjs && npm run test:python",
     "test:python": "python3 -W error::ResourceWarning -m unittest discover -s test/python -p 'test_*.py' -v"
   },

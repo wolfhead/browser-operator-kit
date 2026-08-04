@@ -18,7 +18,7 @@ export async function buildExtension({ adapterPath, outputDirectory }) {
   await rm(outputDirectory, { recursive: true, force: true });
   await cp(path.join(packageRoot, "extension"), outputDirectory, { recursive: true });
 
-  const descriptorDirectory = path.join(outputDirectory, "eye", "descriptors");
+  const descriptorDirectory = path.join(outputDirectory, "observer", "descriptors");
   await rm(descriptorDirectory, { recursive: true, force: true });
   await mkdir(descriptorDirectory, { recursive: true });
   const descriptorPaths = [];
@@ -26,16 +26,16 @@ export async function buildExtension({ adapterPath, outputDirectory }) {
     const source = path.resolve(adapterDirectory, configuredPath);
     const fileName = `${String(index + 1).padStart(2, "0")}-${path.basename(configuredPath)}`;
     await cp(source, path.join(descriptorDirectory, fileName));
-    descriptorPaths.push(`eye/descriptors/${fileName}`);
+    descriptorPaths.push(`observer/descriptors/${fileName}`);
   }
   await writeFile(
-    path.join(outputDirectory, "eye", "descriptor-registry.js"),
+    path.join(outputDirectory, "observer", "descriptor-registry.js"),
     `export const DESCRIPTOR_PATHS = ${JSON.stringify(descriptorPaths, null, 2)};\n`
   );
 
   const manifestPath = path.join(outputDirectory, "manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  manifest.name = `${adapter.displayName} Eye`;
+  manifest.name = `${adapter.displayName} Page Observer`;
   manifest.version = adapter.version;
   manifest.host_permissions = [...new Set([
     ...(manifest.host_permissions || []),
@@ -44,7 +44,7 @@ export async function buildExtension({ adapterPath, outputDirectory }) {
   ])];
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-  for (const relativeFile of ["eye-service-worker.js", "sidepanel/sidepanel.js"]) {
+  for (const relativeFile of ["observer-service-worker.js", "sidepanel/sidepanel.js"]) {
     const file = path.join(outputDirectory, relativeFile);
     const source = await readFile(file, "utf8");
     const bridgePattern = /const BRIDGE_URLS = \[[\s\S]*?\];/;
