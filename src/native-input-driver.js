@@ -394,8 +394,8 @@ export function normalizeNativeAction(action) {
   }
   if (action.type === "typeText") {
     const text = String(action.text ?? "");
-    if (!text || text.length > 240 || /[\u0000-\u001f\u007f]/.test(text)) {
-      throw new Error("text must contain 1 to 240 printable characters.");
+    if (!text || text.length > 240 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) {
+      throw new Error("text must contain 1 to 240 characters and no unsupported control characters.");
     }
     return { type: action.type, point: { x, y }, text, seed };
   }

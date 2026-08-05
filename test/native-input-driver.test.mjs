@@ -29,6 +29,33 @@ test("native input actions are bounded and normalized", () => {
     /deltaY/
   );
   assert.equal(normalizeNativeAction({ type: "scroll", point: { x: 1, y: 2 }, deltaY: -640, seed: 1 }).deltaY, -640);
+  assert.equal(
+    normalizeNativeAction({
+      type: "typeText",
+      point: { x: 1, y: 2 },
+      text: "岗位：后端工程师\n评价：建议沟通\t已复核",
+      seed: 1
+    }).text,
+    "岗位：后端工程师\n评价：建议沟通\t已复核"
+  );
+  assert.throws(
+    () => normalizeNativeAction({
+      type: "typeText",
+      point: { x: 1, y: 2 },
+      text: "unsafe\u0000text",
+      seed: 1
+    }),
+    /unsupported control characters/
+  );
+  assert.throws(
+    () => normalizeNativeAction({
+      type: "typeText",
+      point: { x: 1, y: 2 },
+      text: "unsafe\u001btext",
+      seed: 1
+    }),
+    /unsupported control characters/
+  );
 });
 
 test("native text input is encoded without shell interpolation", async () => {
