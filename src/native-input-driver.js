@@ -138,6 +138,25 @@ export class NativeInputDriver {
     return JSON.parse(String(stdout).trim());
   }
 
+  async focusBrowserWindow(bundleIdentifier, window, title) {
+    const normalizedBundleIdentifier = normalizeBundleIdentifier(bundleIdentifier);
+    const bounds = normalizeWindowBounds(window);
+    const normalizedTitle = normalizeWindowTitle(title);
+    const { stdout } = await this.invokeHelper(
+      [
+        "activate-browser-window",
+        "--bundle-id", normalizedBundleIdentifier,
+        "--x", String(bounds.x),
+        "--y", String(bounds.y),
+        "--width", String(bounds.width),
+        "--height", String(bounds.height),
+        "--title-base64", Buffer.from(normalizedTitle, "utf8").toString("base64")
+      ],
+      { timeout: 20_000, maxBuffer: 256_000, windowsHide: true }
+    );
+    return JSON.parse(String(stdout).trim());
+  }
+
   async restoreApplication(processIdentifier) {
     const parsedProcessIdentifier = Number(processIdentifier);
     if (!Number.isSafeInteger(parsedProcessIdentifier) || parsedProcessIdentifier <= 0) {
@@ -331,6 +350,22 @@ function normalizeBundleIdentifier(value) {
     throw new Error("bundleIdentifier must contain 1 to 120 bundle identifier characters.");
   }
   return normalized;
+}
+
+function normalizeWindowBounds(window) {
+  const x = boundedNumber(window?.left ?? window?.x, "window.left", -20_000, 20_000);
+  const y = boundedNumber(window?.top ?? window?.y, "window.top", -20_000, 20_000);
+  const width = boundedNumber(window?.width, "window.width", 100, 20_000);
+  const height = boundedNumber(window?.height, "window.height", 100, 20_000);
+  return { x, y, width, height };
+}
+
+function normalizeWindowTitle(value) {
+  const title = String(value ?? "").trim();
+  if (!title || title.length > 240 || /[\u0000-\u001f\u007f]/.test(title)) {
+    throw new Error("window title must contain 1 to 240 printable characters.");
+  }
+  return title;
 }
 
 function normalizeOpenUrl(value) {

@@ -59,6 +59,17 @@ private struct BrowserBootstrapResult: Codable {
     let frontmostBundleIdentifier: String
 }
 
+private struct BrowserWindowActivationResult: Codable {
+    let command: String
+    let bundleIdentifier: String
+    let processIdentifier: Int32
+    let requestedBounds: Rectangle
+    let matchedBounds: Rectangle
+    let matchedTitle: String
+    let frontmostWindowBounds: Rectangle
+    let focused: Bool
+}
+
 private struct Rectangle: Codable {
     let x: Double
     let y: Double
@@ -271,6 +282,9 @@ private enum HelperError: Error, CustomStringConvertible {
     case chromeApplicationUnavailable
     case chromeLaunchFailed
     case chromeActivationFailed(String)
+    case browserWindowNotFound(CGRect)
+    case browserWindowAmbiguous(CGRect)
+    case browserWindowActivationFailed(CGRect, CGRect?)
     case applicationActivationFailed(String, String)
     case urlOpenFailed
     case pointerDidNotConverge(Int, Double)
@@ -297,6 +311,12 @@ private enum HelperError: Error, CustomStringConvertible {
             return "Google Chrome did not start within the allowed bootstrap interval."
         case .chromeActivationFailed(let bundleIdentifier):
             return "Google Chrome did not become the frontmost application; frontmost is '\(bundleIdentifier)'."
+        case .browserWindowNotFound(let requestedBounds):
+            return "No browser window matched the observed bounds \(requestedBounds)."
+        case .browserWindowAmbiguous(let requestedBounds):
+            return "More than one browser window matched the observed title and bounds \(requestedBounds); refusing to choose one."
+        case .browserWindowActivationFailed(let requestedBounds, let actualBounds):
+            return "The browser window at \(requestedBounds) did not become frontmost; actual frontmost bounds are \(String(describing: actualBounds))."
         case .applicationActivationFailed(let expected, let actual):
             return "The previous application '\(expected)' did not become frontmost; frontmost is '\(actual)'."
         case .urlOpenFailed:
@@ -318,6 +338,36 @@ private struct CommandOptions {
     let processIdentifier: Int32?
     let url: URL?
     let socketPath: String?
+    let windowBounds: CGRect?
+    let windowTitle: String?
+
+    init(
+        command: String,
+        target: Point?,
+        seed: UInt64,
+        execute: Bool,
+        deltaY: Int?,
+        text: String?,
+        bundleIdentifier: String?,
+        processIdentifier: Int32?,
+        url: URL?,
+        socketPath: String?,
+        windowBounds: CGRect? = nil,
+        windowTitle: String? = nil
+    ) {
+        self.command = command
+        self.target = target
+        self.seed = seed
+        self.execute = execute
+        self.deltaY = deltaY
+        self.text = text
+        self.bundleIdentifier = bundleIdentifier
+        self.processIdentifier = processIdentifier
+        self.url = url
+        self.socketPath = socketPath
+        self.windowBounds = windowBounds
+        self.windowTitle = windowTitle
+    }
 }
 
 private enum ArgumentParser {
@@ -373,6 +423,39 @@ private enum ArgumentParser {
                 processIdentifier: nil,
                 url: nil,
                 socketPath: nil
+            )
+        }
+        if command == "activate-browser-window" {
+            guard arguments.count == 13,
+                  arguments[1] == "--bundle-id",
+                  arguments[3] == "--x",
+                  arguments[5] == "--y",
+                  arguments[7] == "--width",
+                  arguments[9] == "--height",
+                  arguments[11] == "--title-base64",
+                  let x = Double(arguments[4]), x.isFinite,
+                  let y = Double(arguments[6]), y.isFinite,
+                  let width = Double(arguments[8]), width.isFinite, width >= 100,
+                  let height = Double(arguments[10]), height.isFinite, height >= 100,
+                  let titleData = Data(base64Encoded: arguments[12]),
+                  let title = String(data: titleData, encoding: .utf8),
+                  !title.isEmpty,
+                  title.count <= 240 else {
+                throw HelperError.invalidArguments("activate-browser-window requires --bundle-id <allowed-bundle-id> --x <number> --y <number> --width <number> --height <number> --title-base64 <utf8-base64>.")
+            }
+            return CommandOptions(
+                command: command,
+                target: nil,
+                seed: 1,
+                execute: false,
+                deltaY: nil,
+                text: nil,
+                bundleIdentifier: arguments[2],
+                processIdentifier: nil,
+                url: nil,
+                socketPath: nil,
+                windowBounds: CGRect(x: x, y: y, width: width, height: height),
+                windowTitle: title
             )
         }
         if command == "open-url" {
@@ -494,6 +577,7 @@ private enum ArgumentParser {
       web-input-helper serve --socket-path <absolute-path>
       web-input-helper activate-chrome
       web-input-helper activate-browser --bundle-id <allowed-bundle-id>
+      web-input-helper activate-browser-window --bundle-id <allowed-bundle-id> --x <number> --y <number> --width <number> --height <number> --title-base64 <utf8-base64>
       web-input-helper restore-application --process-id <existing-pid>
       web-input-helper open-url --bundle-id <allowed-bundle-id> --url-base64 <http(s)-url-base64>
       web-input-helper plan --x <screen-x> --y <screen-y> [--seed <uint64>]
@@ -624,6 +708,124 @@ private enum BrowserBootstrap {
                 ? HelperError.chromeLaunchFailed
                 : HelperError.urlOpenFailed
         }
+    }
+}
+
+private enum BrowserWindowActivator {
+    private static let matchTolerance: Double = 48
+
+    static func run(
+        bundleIdentifier: String,
+        requestedBounds: CGRect,
+        requestedTitle: String
+    ) throws -> BrowserWindowActivationResult {
+        guard CGPreflightPostEventAccess() else {
+            throw HelperError.accessibilityPermissionMissing
+        }
+        guard ChromeGuard.isAllowed(bundleIdentifier) else {
+            throw HelperError.frontmostApplicationIsNotChrome(bundleIdentifier)
+        }
+        guard let application = NSRunningApplication.runningApplications(
+            withBundleIdentifier: bundleIdentifier
+        ).first(where: { !$0.isTerminated }) else {
+            throw HelperError.chromeLaunchFailed
+        }
+
+        let applicationElement = AXUIElementCreateApplication(application.processIdentifier)
+        var rawWindows: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            applicationElement,
+            kAXWindowsAttribute as CFString,
+            &rawWindows
+        ) == .success,
+        let windows = rawWindows as? [AXUIElement] else {
+            throw HelperError.browserWindowNotFound(requestedBounds)
+        }
+
+        let candidates = windows.compactMap { window -> (AXUIElement, CGRect, String, Double)? in
+            guard let bounds = bounds(of: window),
+                  let title = title(of: window) else { return nil }
+            return (window, bounds, title, distance(bounds, requestedBounds))
+        }
+        let matches = candidates.filter { candidate in
+            candidate.3 <= matchTolerance && candidate.2.localizedCaseInsensitiveContains(requestedTitle)
+        }
+        guard !matches.isEmpty else {
+            throw HelperError.browserWindowNotFound(requestedBounds)
+        }
+        guard matches.count == 1, let selected = matches.first else {
+            throw HelperError.browserWindowAmbiguous(requestedBounds)
+        }
+
+        _ = application.activate(options: [.activateAllWindows])
+        _ = AXUIElementSetAttributeValue(selected.0, kAXMainAttribute as CFString, kCFBooleanTrue)
+        _ = AXUIElementSetAttributeValue(selected.0, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        _ = AXUIElementPerformAction(selected.0, kAXRaiseAction as CFString)
+
+        let deadline = Date().addingTimeInterval(5)
+        var actualBounds: CGRect?
+        while Date() < deadline {
+            actualBounds = ChromeGuard.frontmostWindowBounds(
+                processIdentifier: application.processIdentifier
+            )
+            if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier,
+               let actualBounds,
+               distance(actualBounds, selected.1) <= matchTolerance {
+                return BrowserWindowActivationResult(
+                    command: "activate-browser-window",
+                    bundleIdentifier: bundleIdentifier,
+                    processIdentifier: application.processIdentifier,
+                    requestedBounds: Rectangle(requestedBounds),
+                    matchedBounds: Rectangle(selected.1),
+                    matchedTitle: selected.2,
+                    frontmostWindowBounds: Rectangle(actualBounds),
+                    focused: true
+                )
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+            _ = application.activate(options: [.activateAllWindows])
+            _ = AXUIElementPerformAction(selected.0, kAXRaiseAction as CFString)
+        }
+        throw HelperError.browserWindowActivationFailed(requestedBounds, actualBounds)
+    }
+
+    private static func bounds(of window: AXUIElement) -> CGRect? {
+        var rawPosition: CFTypeRef?
+        var rawSize: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &rawPosition) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &rawSize) == .success,
+              let rawPosition,
+              let rawSize,
+              CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+              CFGetTypeID(rawSize) == AXValueGetTypeID() else {
+            return nil
+        }
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        guard AXValueGetValue(rawPosition as! AXValue, .cgPoint, &position),
+              AXValueGetValue(rawSize as! AXValue, .cgSize, &size) else {
+            return nil
+        }
+        return CGRect(origin: position, size: size)
+    }
+
+    private static func title(of window: AXUIElement) -> String? {
+        var rawTitle: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &rawTitle) == .success,
+              let title = rawTitle as? String,
+              !title.isEmpty else {
+            return nil
+        }
+        return title
+    }
+
+    private static func distance(_ left: CGRect, _ right: CGRect) -> Double {
+        max(
+            abs(left.origin.x - right.origin.x),
+            abs(left.origin.y - right.origin.y),
+            abs(left.width - right.width),
+            abs(left.height - right.height)
+        )
     }
 }
 
@@ -1350,6 +1552,17 @@ private func executeJSONCommand(arguments: [String]) throws -> Data {
         return try encodeJSON(BrowserBootstrap.run(
             bundleIdentifier: bundleIdentifier,
             url: options.url
+        ))
+    case "activate-browser-window":
+        guard let bundleIdentifier = options.bundleIdentifier,
+              let windowBounds = options.windowBounds,
+              let windowTitle = options.windowTitle else {
+            throw HelperError.invalidArguments("An allowed browser bundle identifier, observed window bounds, and title are required.")
+        }
+        return try encodeJSON(BrowserWindowActivator.run(
+            bundleIdentifier: bundleIdentifier,
+            requestedBounds: windowBounds,
+            requestedTitle: windowTitle
         ))
     case "restore-application":
         guard let processIdentifier = options.processIdentifier else {

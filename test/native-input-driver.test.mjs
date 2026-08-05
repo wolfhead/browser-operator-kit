@@ -169,6 +169,39 @@ test("browser bootstrap uses explicit bundle identifiers and encoded URLs", asyn
   assert.ok(calls.every((call) => call.options.windowsHide === true));
 });
 
+test("browser window focus passes only normalized observed bounds to the helper", async () => {
+  const calls = [];
+  const controller = new NativeInputDriver({
+    projectRoot: "/tmp/browser-operator-kit-native-test",
+    environment: { WEB_AUTOMATION_INPUT_HELPER_PATH: "/bin/echo" },
+    runner: async (file, argumentsList, options) => {
+      calls.push({ file, argumentsList, options });
+      return {
+        stdout: JSON.stringify({ command: argumentsList[0], focused: true }),
+        stderr: ""
+      };
+    }
+  });
+
+  const result = await controller.focusBrowserWindow(
+    "com.google.Chrome",
+    { left: 10.123, top: 20.456, width: 1200, height: 800 },
+    "BOSS直聘"
+  );
+
+  assert.equal(result.focused, true);
+  assert.deepEqual(calls[0].argumentsList, [
+    "activate-browser-window",
+    "--bundle-id", "com.google.Chrome",
+    "--x", "10.12",
+    "--y", "20.46",
+    "--width", "1200",
+    "--height", "800",
+    "--title-base64", Buffer.from("BOSS直聘", "utf8").toString("base64")
+  ]);
+  assert.equal(calls[0].options.windowsHide, true);
+});
+
 test("foreground lease does not steal focus back after human takeover", async () => {
   const controller = new NativeInputDriver({ projectRoot: "/tmp/browser-operator-kit-native-test" });
   controller.foregroundLeases.set("lease-1", {

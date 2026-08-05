@@ -26,12 +26,13 @@ The service accepts one bounded, versioned JSON request per connection and retur
 2. Require the expected page and preconditions.
 3. Resolve a registered target and fresh screen point.
 4. Acquire a foreground lease only if needed.
-5. Observe again after focus changes.
-6. Re-resolve the target and validate observation freshness/window bounds.
-7. Execute one native action.
-8. Poll fresh Page Observer results using the command's verification policy.
-9. Require the result page and postconditions.
-10. Restore the previous application unless another person or app took over.
+5. Ask the Native Input Driver to raise the unique Chrome window matching the title and bounds from that observation; ambiguous matches fail closed.
+6. Observe again after focus changes.
+7. Re-resolve the target and validate observation freshness/window bounds.
+8. Execute one native action.
+9. Poll fresh Page Observer results using the command's verification policy.
+10. Require the result page and postconditions.
+11. Restore the previous application unless another person or app took over.
 
 An `openUrl` bootstrap is targetless but still requires an exact runtime allowlist entry, a declared result page, a foreground lease, and final Page Observer verification.
 

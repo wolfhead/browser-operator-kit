@@ -171,6 +171,10 @@ export class CommandOrchestrator {
         activateIfNeeded: foregroundPolicy.activate === "ifNeeded"
       });
 
+      if (!isBootstrap) {
+        await this.focusObservedBrowserWindow(readyBackgroundObservation, browserBundleIdentifier);
+      }
+
       const actionableObservation = isBootstrap
         ? null
         : await this.waitForTargetReady(command, await this.observe(), "ACTION");
@@ -394,6 +398,37 @@ export class CommandOrchestrator {
 
   async observe() {
     return await this.bridge.request("observer.observe", {}, 10_000);
+  }
+
+  async focusObservedBrowserWindow(observation, browserBundleIdentifier) {
+    const observationId = observation?.observationId;
+    const window = observation?.window;
+    if (
+      !observationId ||
+      !window ||
+      ![window.left, window.top, window.width, window.height].every(Number.isFinite)
+    ) return;
+    this.logger("info", "observed_browser_window_focus_requested", {
+      observationId,
+      windowId: window.id ?? null
+    });
+    if (typeof this.inputDriver.focusBrowserWindow !== "function") return;
+    const result = await this.inputDriver.focusBrowserWindow(
+      browserBundleIdentifier,
+      window,
+      observation?.tab?.title
+    );
+    if (result?.focused !== true) {
+      throw new WebCommandError(
+        "FOREGROUND_FAILED",
+        "foreground",
+        "The observed browser window did not accept focus."
+      );
+    }
+    this.logger("info", "observed_browser_window_focus_acquired", {
+      observationId,
+      windowId: window.id ?? null
+    });
   }
 
   async dashboardUpdate(command, step, message) {

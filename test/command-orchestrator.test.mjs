@@ -63,6 +63,42 @@ test("web command releases foreground lease when postcondition fails", async () 
   assert.equal(calls.some((call) => call.type === "lease" && call.event === "end"), true);
 });
 
+test("web command focuses the exact observed browser window before native input", async () => {
+  const background = observation("");
+  background.observationId = "observation-1";
+  background.window = { id: 17, focused: false, left: 10, top: 20, width: 1200, height: 800 };
+  background.tab = { title: "Fixture" };
+  const calls = [];
+  const orchestrator = new CommandOrchestrator({
+    bridge: fakeBridge([background, observation("", true), observation("expected", true)], calls),
+    inputDriver: fakeInputDriver(calls)
+  });
+  const report = await orchestrator.executeWorkflow({
+    id: "focus-observed-window",
+    label: "Focus observed window",
+    browserBundleIdentifier: "com.google.Chrome",
+    commands: [{
+      id: "paste",
+      expectedPage: "fixture",
+      target: { scope: "fields", name: "query" },
+      action: { type: "paste", text: "expected" },
+      postconditions: [{ scope: "fields", name: "query", path: "read.value", equals: "expected" }]
+    }]
+  });
+  assert.equal(report.ok, true);
+  assert.deepEqual(calls.find((call) => call.type === "focusWindow"), {
+    type: "focusWindow",
+    bundleIdentifier: "com.google.Chrome",
+    window: background.window,
+    title: "Fixture"
+  });
+  assert.equal(
+    calls.findIndex((call) => call.type === "focusWindow") <
+      calls.findIndex((call) => call.type === "action"),
+    true
+  );
+});
+
 test("web command waits for an asynchronous postcondition before reporting success", async () => {
   const calls = [];
   const orchestrator = new CommandOrchestrator({
@@ -614,6 +650,10 @@ function fakeInputDriver(calls) {
         requestedTextLength: action.text?.length ?? null,
         helper: { command: action.type }
       };
+    },
+    async focusBrowserWindow(bundleIdentifier, window, title) {
+      calls.push({ type: "focusWindow", bundleIdentifier, window, title });
+      return { focused: true };
     },
     async openUrl(url, bundleIdentifier) {
       calls.push({ type: "openUrl", url, bundleIdentifier });
