@@ -24,7 +24,7 @@ Page Observer never clicks, types, scrolls, changes focus, or claims that an act
 - Node.js 20 or newer
 - Swift toolchain
 - Google Chrome
-- Accessibility permission for `native-helper/macos/.build/web-input-helper`
+- Accessibility permission for the signed `Browser Operator Input Service.app` in resident-service deployments
 
 Windows is not implemented yet. The operation and Page Observer layers are platform-independent; a Windows Native Input Driver can implement the same native helper contract later.
 
@@ -41,6 +41,7 @@ This builds:
 - `dist/demo-extension`: a generic test build pinned to the isolated demo bridge
 - `dist/server`: bundled Page Observer, Native Input Driver, and Command Orchestrator MCP servers
 - `native-helper/macos/.build/web-input-helper`: the native input helper
+- `native-helper/macos/.build/Browser Operator Input Service.app`: the background App bundle for resident-service deployments
 
 For normal use, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the absolute `browser-operator-kit/dist/extension` directory. The extension contains no site descriptors or site permissions. A connected local Adapter service registers descriptors at runtime, and the Side Panel asks the user to grant only the declared sites.
 
@@ -60,12 +61,12 @@ The isolated acceptance uses Chrome for Testing, a temporary profile, bridge por
 
 ## Resident native input service
 
-For a controller that runs from a Web Worker or another background service, run the signed helper as a per-user resident process. This keeps macOS Accessibility ownership on the process that actually posts input events instead of on a short-lived child of the Worker:
+For a controller that runs from a Web Worker or another background service, install and run the signed background App as a per-user resident process. This gives macOS TCC a stable GUI application identity and keeps Accessibility ownership on the process that actually posts input events instead of on a short-lived child of the Worker:
 
 ```bash
 mkdir -p "$HOME/Library/Application Support/Browser Operator Kit"
 chmod 700 "$HOME/Library/Application Support/Browser Operator Kit"
-native-helper/macos/.build/web-input-helper serve \
+"native-helper/macos/.build/Browser Operator Input Service.app/Contents/MacOS/web-input-helper" serve \
   --socket-path "$HOME/Library/Application Support/Browser Operator Kit/input-helper.sock"
 ```
 
@@ -76,9 +77,9 @@ export WEB_AUTOMATION_INPUT_TRANSPORT=service
 export WEB_AUTOMATION_INPUT_SERVICE_SOCKET="$HOME/Library/Application Support/Browser Operator Kit/input-helper.sock"
 ```
 
-The default `direct` transport remains available for interactive development. Service mode never silently falls back to spawning a helper: an unavailable socket is an explicit error. For unattended startup, install the `serve` command as a logged-in user's LaunchAgent and grant Accessibility permission to the exact built helper binary. Re-signing or replacing an ad-hoc-signed binary may require granting permission again.
+The default `direct` transport remains available for interactive development. Service mode never silently falls back to spawning a helper: an unavailable socket is an explicit error. For unattended startup, copy the App to the logged-in user's `~/Applications`, configure the LaunchAgent to run its `Contents/MacOS/web-input-helper`, and grant Accessibility permission to the App. Set `WEB_AUTOMATION_CODESIGN_IDENTITY` to a stable macOS code-signing identity during `npm run build:native`; the default ad-hoc signature is suitable only for development and may require permission again after replacement.
 
-After adding the exact helper binary under **System Settings → Privacy & Security → Accessibility**, run the following command once from the logged-in desktop session:
+After adding the installed App under **System Settings → Privacy & Security → Accessibility**, request event-synthesis access from the resident service:
 
 ```bash
 native-helper/macos/.build/web-input-helper request-access
