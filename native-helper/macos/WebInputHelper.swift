@@ -41,6 +41,19 @@ private struct StatusResult: Codable {
     let frontmostWindowBounds: Rectangle?
 }
 
+private struct AccessibilityRequestResult: Codable {
+    let command: String
+    let accessBeforeRequest: Bool
+    let requestAccepted: Bool
+    let accessAfterRequest: Bool
+}
+
+private let nativeServiceDeniedCommands: Set<String> = [
+    "serve",
+    "request-access",
+    "self-test"
+]
+
 private struct ApplicationActivationResult: Codable {
     let command: String
     let processIdentifier: Int32
@@ -394,7 +407,27 @@ private enum ArgumentParser {
                 socketPath: arguments[2]
             )
         }
-        if ["status", "self-test", "activate-chrome"].contains(command) {
+        if command == "status" {
+            guard arguments.count == 1 || arguments == ["status", "--json"] else {
+                throw HelperError.invalidArguments("status accepts only the legacy --json flag.")
+            }
+            return CommandOptions(
+                command: command,
+                target: nil,
+                seed: 1,
+                execute: false,
+                deltaY: nil,
+                text: nil,
+                bundleIdentifier: nil,
+                processIdentifier: nil,
+                url: nil,
+                socketPath: nil
+            )
+        }
+        if ["request-access", "self-test", "activate-chrome"].contains(command) {
+            guard arguments.count == 1 else {
+                throw HelperError.invalidArguments("\(command) does not accept arguments.")
+            }
             return CommandOptions(
                 command: command,
                 target: nil,
@@ -573,6 +606,7 @@ private enum ArgumentParser {
     static let usage = """
     Usage:
       web-input-helper status
+      web-input-helper request-access
       web-input-helper self-test
       web-input-helper serve --socket-path <absolute-path>
       web-input-helper activate-chrome
@@ -1316,7 +1350,8 @@ private enum InputService {
         guard !request.arguments.contains(where: { $0.contains("\0") }) else {
             throw HelperError.invalidArguments("Native input service arguments cannot contain NUL bytes.")
         }
-        guard let command = request.arguments.first, !["serve", "self-test"].contains(command) else {
+        guard let command = request.arguments.first,
+              !nativeServiceDeniedCommands.contains(command) else {
             throw HelperError.invalidArguments("This command is not available through the native input service.")
         }
     }
@@ -1517,6 +1552,26 @@ private func runSelfTests() throws {
         failures.append("utility-only Chrome windows should not authorize input")
     }
 
+    do {
+        let requestOptions = try ArgumentParser.parse(["request-access"])
+        if requestOptions.command != "request-access" || requestOptions.execute {
+            failures.append("request-access was not parsed as a non-input command")
+        }
+    } catch {
+        failures.append("request-access parser rejected a valid command")
+    }
+    if !nativeServiceDeniedCommands.contains("request-access") {
+        failures.append("request-access must remain unavailable through the native service")
+    }
+    do {
+        let legacyStatusOptions = try ArgumentParser.parse(["status", "--json"])
+        if legacyStatusOptions.command != "status" {
+            failures.append("legacy status --json was not parsed as status")
+        }
+    } catch {
+        failures.append("legacy status --json compatibility was rejected")
+    }
+
     if failures.isEmpty {
         print("PASS: trajectory planner checks completed")
         return
@@ -1544,6 +1599,15 @@ private func executeJSONCommand(arguments: [String]) throws -> Data {
             frontmostBundleIdentifier: frontmostApplication?.bundleIdentifier ?? "unknown",
             frontmostProcessIdentifier: frontmostApplication?.processIdentifier,
             frontmostWindowBounds: frontmostBounds.map(Rectangle.init)
+        ))
+    case "request-access":
+        let accessBeforeRequest = CGPreflightPostEventAccess()
+        let requestAccepted = accessBeforeRequest || CGRequestPostEventAccess()
+        return try encodeJSON(AccessibilityRequestResult(
+            command: options.command,
+            accessBeforeRequest: accessBeforeRequest,
+            requestAccepted: requestAccepted,
+            accessAfterRequest: CGPreflightPostEventAccess()
         ))
     case "activate-chrome", "activate-browser", "open-url":
         guard let bundleIdentifier = options.bundleIdentifier else {

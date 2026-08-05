@@ -186,7 +186,7 @@ test("browser window focus passes only normalized observed bounds to the helper"
   const result = await controller.focusBrowserWindow(
     "com.google.Chrome",
     { left: 10.123, top: 20.456, width: 1200, height: 800 },
-    "BOSS直聘"
+    "Customer Portal"
   );
 
   assert.equal(result.focused, true);
@@ -197,7 +197,7 @@ test("browser window focus passes only normalized observed bounds to the helper"
     "--y", "20.46",
     "--width", "1200",
     "--height", "800",
-    "--title-base64", Buffer.from("BOSS直聘", "utf8").toString("base64")
+    "--title-base64", Buffer.from("Customer Portal", "utf8").toString("base64")
   ]);
   assert.equal(calls[0].options.windowsHide, true);
 });

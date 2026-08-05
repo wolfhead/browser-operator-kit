@@ -18,7 +18,7 @@
 - `direct` (default) executes the helper as a child process for interactive development.
 - `service` connects to a resident helper over a user-private Unix socket. The resident process owns macOS Accessibility and serializes requests; the Worker never spawns it.
 
-The service accepts one bounded, versioned JSON request per connection and returns a correlated response. It permits only existing helper commands, rejects recursive service startup and self-tests, and applies the same frontmost-browser, window-bound, movement, and rate safeguards as direct mode. There is no automatic fallback between transports.
+The service accepts one bounded, versioned JSON request per connection and returns a correlated response. It permits only existing helper commands, rejects recursive service startup, permission prompting, and self-tests, and applies the same frontmost-browser, window-bound, movement, and rate safeguards as direct mode. The direct-only `request-access` command calls macOS `CGRequestPostEventAccess()` without creating or posting input events. There is no automatic fallback between transports.
 
 ## Guarded command lifecycle
 

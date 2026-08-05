@@ -78,6 +78,14 @@ export WEB_AUTOMATION_INPUT_SERVICE_SOCKET="$HOME/Library/Application Support/Br
 
 The default `direct` transport remains available for interactive development. Service mode never silently falls back to spawning a helper: an unavailable socket is an explicit error. For unattended startup, install the `serve` command as a logged-in user's LaunchAgent and grant Accessibility permission to the exact built helper binary. Re-signing or replacing an ad-hoc-signed binary may require granting permission again.
 
+After adding the exact helper binary under **System Settings → Privacy & Security → Accessibility**, run the following command once from the logged-in desktop session:
+
+```bash
+native-helper/macos/.build/web-input-helper request-access
+```
+
+`request-access` calls macOS `CGRequestPostEventAccess()` and may show the system prompt for event-synthesis access. It never creates or posts a mouse or keyboard event, and it is intentionally unavailable through the resident service socket. Confirm readiness with `web-input-helper status`; `accessibilityPostEventAccess` must be `true` before automation starts.
+
 ## Adapter configuration
 
 An adapter supplies site knowledge without modifying the generic runtime. See [`demo/adapter/automation.adapter.json`](demo/adapter/automation.adapter.json):
