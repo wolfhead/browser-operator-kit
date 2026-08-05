@@ -117,6 +117,8 @@ Descriptors declare:
 - collections whose items can be addressed by index or stable identity;
 - scrollable regions, footer locators, overlap ratios, and remaining distance.
 
+Text locators may set `"unique": true` when an action must fail safely unless exactly one matching element exists.
+
 Page Observer results include the Chrome window and viewport geometry needed to convert page coordinates into native screen points. Inspector tools can also return bounded DOM snapshots, query CSS/XPath/text selectors, and explicitly execute JavaScript for adapter development. JavaScript execution is intentionally powerful and is exposed as a mutating, open-world Inspector action.
 
 ## Named operations

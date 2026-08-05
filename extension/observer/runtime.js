@@ -61,12 +61,14 @@ export function observeDocument(descriptor) {
     if (locator.kind === "text") {
       const candidates = Array.from(document.querySelectorAll(locator.selector || "body *"));
       const expected = locator.text ? [locator.text] : (locator.textAny || []);
-      return candidates.find((element) => {
+      const matches = candidates.filter((element) => {
         const text = textOf(element);
         return expected.some((value) => locator.exact === true
           ? text === String(value)
           : text.includes(String(value)));
-      }) ?? null;
+      });
+      if (locator.unique === true && matches.length !== 1) return null;
+      return matches[0] ?? null;
     }
     if (locator.kind === "sectionOption") {
       const heading = smallestVisibleExactText(locator.sectionText);
