@@ -84,7 +84,7 @@ After adding the exact helper binary under **System Settings → Privacy & Secur
 native-helper/macos/.build/web-input-helper request-access
 ```
 
-`request-access` calls macOS `CGRequestPostEventAccess()` and may show the system prompt for event-synthesis access. It never creates or posts a mouse or keyboard event, and it is intentionally unavailable through the resident service socket. Confirm readiness with `web-input-helper status`; `accessibilityPostEventAccess` must be `true` before automation starts.
+`request-access` calls macOS `CGRequestPostEventAccess()` and may show the system prompt for event-synthesis access. It never creates or posts a mouse or keyboard event. In service deployments, invoke the same command through the user-private resident service socket so the process that owns input delivery also owns the authorization request. Confirm readiness with `web-input-helper status`; `accessibilityPostEventAccess` must be `true` before automation starts.
 
 ## Adapter configuration
 

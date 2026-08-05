@@ -50,7 +50,6 @@ private struct AccessibilityRequestResult: Codable {
 
 private let nativeServiceDeniedCommands: Set<String> = [
     "serve",
-    "request-access",
     "self-test"
 ]
 
@@ -1560,8 +1559,8 @@ private func runSelfTests() throws {
     } catch {
         failures.append("request-access parser rejected a valid command")
     }
-    if !nativeServiceDeniedCommands.contains("request-access") {
-        failures.append("request-access must remain unavailable through the native service")
+    if nativeServiceDeniedCommands.contains("request-access") {
+        failures.append("request-access must be available to the resident native service")
     }
     do {
         let legacyStatusOptions = try ArgumentParser.parse(["status", "--json"])
