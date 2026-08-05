@@ -89,11 +89,8 @@ export class PageObserver {
     );
     const topFrames = observations.filter((frame) => frame.frameId === 0);
     const topFrame = topFrames[0] ?? observations[0];
-    const pageObservation = observations
-      .filter((frame) => frame.page !== "unknown")
-      .sort((left, right) => pagePriority(descriptors, right.page) - pagePriority(descriptors, left.page))[0]
-      ?? topFrame;
     const frameOffsets = buildFrameOffsets(observations);
+    const pageObservation = chooseCurrentPage(observations, descriptors, frameOffsets) ?? topFrame;
     const enrich = (target, frameId) => {
       if (!target?.found || !target.viewportPoint || !topFrame?.screen) return target;
       const offset = frameOffsets.get(frameId);
@@ -316,6 +313,20 @@ function matches(descriptor, url) {
 function pagePriority(descriptors, pageName) {
   return descriptors.flatMap((descriptor) => descriptor.pages)
     .find((page) => page.name === pageName)?.priority ?? 0;
+}
+
+export function chooseCurrentPage(
+  observations,
+  descriptors,
+  frameOffsets = buildFrameOffsets(observations)
+) {
+  return observations
+    .filter((frame) => frame.page !== "unknown" && frameOffsets.has(frame.frameId))
+    .sort((left, right) => {
+      const priorityDifference = pagePriority(descriptors, right.page) - pagePriority(descriptors, left.page);
+      if (priorityDifference !== 0) return priorityDifference;
+      return Number(left.frameId !== 0) - Number(right.frameId !== 0);
+    })[0] ?? null;
 }
 
 function isNonEmptyString(value) {
