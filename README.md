@@ -58,6 +58,26 @@ npm run accept:demo
 
 The isolated acceptance uses Chrome for Testing, a temporary profile, bridge port `38494`, real native paste/click/wheel events, and Page Observer postcondition checks. It briefly changes foreground focus while each Native Input Driver action runs.
 
+## Resident native input service
+
+For a controller that runs from a Web Worker or another background service, run the signed helper as a per-user resident process. This keeps macOS Accessibility ownership on the process that actually posts input events instead of on a short-lived child of the Worker:
+
+```bash
+mkdir -p "$HOME/Library/Application Support/Browser Operator Kit"
+chmod 700 "$HOME/Library/Application Support/Browser Operator Kit"
+native-helper/macos/.build/web-input-helper serve \
+  --socket-path "$HOME/Library/Application Support/Browser Operator Kit/input-helper.sock"
+```
+
+Configure the controller explicitly:
+
+```bash
+export WEB_AUTOMATION_INPUT_TRANSPORT=service
+export WEB_AUTOMATION_INPUT_SERVICE_SOCKET="$HOME/Library/Application Support/Browser Operator Kit/input-helper.sock"
+```
+
+The default `direct` transport remains available for interactive development. Service mode never silently falls back to spawning a helper: an unavailable socket is an explicit error. For unattended startup, install the `serve` command as a logged-in user's LaunchAgent and grant Accessibility permission to the exact built helper binary. Re-signing or replacing an ad-hoc-signed binary may require granting permission again.
+
 ## Adapter configuration
 
 An adapter supplies site knowledge without modifying the generic runtime. See [`demo/adapter/automation.adapter.json`](demo/adapter/automation.adapter.json):
@@ -182,6 +202,7 @@ Configure `WEB_AUTOMATION_OPERATION_DIRS` and `WEB_AUTOMATION_ALLOWED_OPEN_URLS`
 - Page Observer runtime is checked for page interaction primitives.
 - Native Input Driver validates Accessibility access, the frontmost bundle, window bounds, observation freshness, and action bounds.
 - Native text is passed as Base64 argv data without shell interpolation.
+- Resident-service requests use a versioned, bounded protocol over a mode `0600` Unix socket inside a mode `0700` user-owned directory.
 - Input is serialized, rate-limited, and uses non-linear mouse paths with final-position correction.
 - Page changes are accepted only after fresh Page Observer postconditions pass.
 - Login, CAPTCHA, and site-specific verification policy belongs in the adapter and orchestrator.

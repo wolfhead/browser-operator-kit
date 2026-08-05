@@ -4,6 +4,10 @@ import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import {
+  NativeInputServiceClient,
+  defaultNativeInputServiceSocketPath
+} from "./native-input-service-client.js";
 
 const execFileAsync = promisify(execFile);
 const ALLOWED_ACTION_TYPES = new Set(["moveClick", "scroll", "typeText"]);
@@ -14,6 +18,7 @@ export class NativeInputDriver {
     platform = process.platform,
     environment = process.env,
     runner = execFileAsync,
+    serviceClient,
     logger = () => {},
     minimumIntervalMs = 1_000,
     maximumIntervalMs = 1_600,
@@ -26,6 +31,16 @@ export class NativeInputDriver {
     this.platform = platform;
     this.environment = environment;
     this.runner = runner;
+    this.inputTransport = environment.WEB_AUTOMATION_INPUT_TRANSPORT || "direct";
+    if (!["direct", "service"].includes(this.inputTransport)) {
+      throw new Error("WEB_AUTOMATION_INPUT_TRANSPORT must be 'direct' or 'service'.");
+    }
+    this.serviceSocketPath = environment.WEB_AUTOMATION_INPUT_SERVICE_SOCKET
+      ? path.resolve(environment.WEB_AUTOMATION_INPUT_SERVICE_SOCKET)
+      : defaultNativeInputServiceSocketPath();
+    this.serviceClient = serviceClient ?? new NativeInputServiceClient({
+      socketPath: this.serviceSocketPath
+    });
     this.logger = logger;
     this.minimumIntervalMs = minimumIntervalMs;
     this.maximumIntervalMs = Math.max(maximumIntervalMs, minimumIntervalMs);
@@ -57,8 +72,7 @@ export class NativeInputDriver {
     let helperPath;
     try {
       helperPath = this.helperPath();
-      await access(helperPath, constants.X_OK);
-      const { stdout } = await this.runner(helperPath, ["status"], {
+      const { stdout } = await this.invokeHelper(["status"], {
         timeout: 5_000,
         maxBuffer: 256_000,
         windowsHide: true
@@ -67,6 +81,8 @@ export class NativeInputDriver {
         available: true,
         platform: this.platform,
         helperPath,
+        transport: this.inputTransport,
+        serviceSocketPath: this.inputTransport === "service" ? this.serviceSocketPath : null,
         ...JSON.parse(String(stdout).trim())
       };
     } catch (error) {
@@ -74,6 +90,8 @@ export class NativeInputDriver {
         available: false,
         platform: this.platform,
         helperPath: helperPath ?? null,
+        transport: this.inputTransport,
+        serviceSocketPath: this.inputTransport === "service" ? this.serviceSocketPath : null,
         error: error instanceof Error ? error.message : String(error)
       };
     }
@@ -88,9 +106,7 @@ export class NativeInputDriver {
     const normalizedBundleIdentifier = normalizeBundleIdentifier(bundleIdentifier);
     const startedAt = new Date().toISOString();
     const before = await this.status();
-    const helperPath = this.helperPath();
-    await access(helperPath, constants.X_OK);
-    const { stdout } = await this.runner(helperPath, [
+    const { stdout } = await this.invokeHelper([
       "open-url",
       "--bundle-id",
       normalizedBundleIdentifier,
@@ -114,11 +130,8 @@ export class NativeInputDriver {
   }
 
   async activateBrowser(bundleIdentifier) {
-    const helperPath = this.helperPath();
-    await access(helperPath, constants.X_OK);
     const normalizedBundleIdentifier = normalizeBundleIdentifier(bundleIdentifier);
-    const { stdout } = await this.runner(
-      helperPath,
+    const { stdout } = await this.invokeHelper(
       ["activate-browser", "--bundle-id", normalizedBundleIdentifier],
       { timeout: 20_000, maxBuffer: 256_000, windowsHide: true }
     );
@@ -126,14 +139,11 @@ export class NativeInputDriver {
   }
 
   async restoreApplication(processIdentifier) {
-    const helperPath = this.helperPath();
-    await access(helperPath, constants.X_OK);
     const parsedProcessIdentifier = Number(processIdentifier);
     if (!Number.isSafeInteger(parsedProcessIdentifier) || parsedProcessIdentifier <= 0) {
       throw new Error("processIdentifier must be a positive integer.");
     }
-    const { stdout } = await this.runner(
-      helperPath,
+    const { stdout } = await this.invokeHelper(
       ["restore-application", "--process-id", String(parsedProcessIdentifier)],
       { timeout: 10_000, maxBuffer: 256_000, windowsHide: true }
     );
@@ -236,8 +246,6 @@ export class NativeInputDriver {
   }
 
   async executeNow(action) {
-    const helperPath = this.helperPath();
-    await access(helperPath, constants.X_OK);
     const argumentsList = [
       action.type === "moveClick"
         ? "move-click"
@@ -268,7 +276,7 @@ export class NativeInputDriver {
       seed: action.seed
     });
     try {
-      const { stdout, stderr } = await this.runner(helperPath, argumentsList, {
+      const { stdout, stderr } = await this.invokeHelper(argumentsList, {
         timeout: 15_000,
         maxBuffer: 256_000,
         windowsHide: true
@@ -305,6 +313,15 @@ export class NativeInputDriver {
       });
       throw new Error(message);
     }
+  }
+
+  async invokeHelper(argumentsList, options) {
+    if (this.inputTransport === "service") {
+      return await this.serviceClient.invoke(argumentsList, { timeout: options.timeout });
+    }
+    const helperPath = this.helperPath();
+    await access(helperPath, constants.X_OK);
+    return await this.runner(helperPath, argumentsList, options);
   }
 }
 

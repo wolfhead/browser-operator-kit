@@ -32,6 +32,7 @@
     "./input-driver-server": "./src/input-driver-server.js",
     "./mcp-utils": "./src/mcp-utils.js",
     "./native-input-driver": "./src/native-input-driver.js",
+    "./native-input-service-client": "./src/native-input-service-client.js",
     "./operation-catalog": "./src/operation-catalog.js",
     "./orchestrator-server": "./src/orchestrator-server.js",
     "./project-root": "./src/project-root.js",
@@ -47,7 +48,7 @@
     "check": "npm run build && npm run validate && npm run check:public && npm run check:syntax && npm test",
     "validate": "node scripts/validate-adapter.mjs demo/adapter/automation.adapter.json && node scripts/validate-manifest.mjs dist/extension/manifest.json && node scripts/validate-manifest.mjs dist/demo-extension/manifest.json",
     "check:public": "node scripts/check-public-boundary.mjs",
-    "check:syntax": "node --check src/adapter-loader.js && node --check src/orchestrator-server.js && node --check src/orchestrator-server-entry.js && node --check src/command-orchestrator.js && node --check src/native-input-driver.js && node --check src/operation-catalog.js && node --check scripts/build-extension.mjs && node --check extension/observer-service-worker.js && node --check extension/observer/engine.js && node --check extension/sidepanel/sidepanel.js && python3 -m py_compile python/browser_operator_kit/*.py",
+    "check:syntax": "node --check src/adapter-loader.js && node --check src/orchestrator-server.js && node --check src/orchestrator-server-entry.js && node --check src/command-orchestrator.js && node --check src/native-input-driver.js && node --check src/native-input-service-client.js && node --check src/operation-catalog.js && node --check scripts/build-extension.mjs && node --check extension/observer-service-worker.js && node --check extension/observer/engine.js && node --check extension/sidepanel/sidepanel.js && python3 -m py_compile python/browser_operator_kit/*.py",
     "test": "node --test test/*.test.mjs && npm run test:python",
     "test:python": "python3 -W error::ResourceWarning -m unittest discover -s test/python -p 'test_*.py' -v"
   },

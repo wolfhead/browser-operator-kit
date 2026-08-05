@@ -317,12 +317,32 @@ private struct CommandOptions {
     let bundleIdentifier: String?
     let processIdentifier: Int32?
     let url: URL?
+    let socketPath: String?
 }
 
 private enum ArgumentParser {
     static func parse(_ arguments: [String]) throws -> CommandOptions {
         guard let command = arguments.first else {
             throw HelperError.invalidArguments(usage)
+        }
+        if command == "serve" {
+            guard arguments.count == 3,
+                  arguments[1] == "--socket-path",
+                  arguments[2].hasPrefix("/") else {
+                throw HelperError.invalidArguments("serve requires --socket-path <absolute-path>.")
+            }
+            return CommandOptions(
+                command: command,
+                target: nil,
+                seed: 1,
+                execute: false,
+                deltaY: nil,
+                text: nil,
+                bundleIdentifier: nil,
+                processIdentifier: nil,
+                url: nil,
+                socketPath: arguments[2]
+            )
         }
         if ["status", "self-test", "activate-chrome"].contains(command) {
             return CommandOptions(
@@ -334,7 +354,8 @@ private enum ArgumentParser {
                 text: nil,
                 bundleIdentifier: command == "activate-chrome" ? "com.google.Chrome" : nil,
                 processIdentifier: nil,
-                url: nil
+                url: nil,
+                socketPath: nil
             )
         }
         if command == "activate-browser" {
@@ -350,7 +371,8 @@ private enum ArgumentParser {
                 text: nil,
                 bundleIdentifier: arguments[2],
                 processIdentifier: nil,
-                url: nil
+                url: nil,
+                socketPath: nil
             )
         }
         if command == "open-url" {
@@ -374,7 +396,8 @@ private enum ArgumentParser {
                 text: nil,
                 bundleIdentifier: arguments[2],
                 processIdentifier: nil,
-                url: url
+                url: url,
+                socketPath: nil
             )
         }
         if command == "restore-application" {
@@ -393,7 +416,8 @@ private enum ArgumentParser {
                 text: nil,
                 bundleIdentifier: nil,
                 processIdentifier: processIdentifier,
-                url: nil
+                url: nil,
+                socketPath: nil
             )
         }
         guard ["plan", "move", "move-click", "scroll", "type-text"].contains(command) else {
@@ -458,7 +482,8 @@ private enum ArgumentParser {
             text: text,
             bundleIdentifier: nil,
             processIdentifier: nil,
-            url: nil
+            url: nil,
+            socketPath: nil
         )
     }
 
@@ -466,6 +491,7 @@ private enum ArgumentParser {
     Usage:
       web-input-helper status
       web-input-helper self-test
+      web-input-helper serve --socket-path <absolute-path>
       web-input-helper activate-chrome
       web-input-helper activate-browser --bundle-id <allowed-bundle-id>
       web-input-helper restore-application --process-id <existing-pid>
@@ -960,6 +986,247 @@ private struct PasteboardSnapshot {
     }
 }
 
+private struct InputServiceRequest: Codable {
+    let version: Int
+    let id: String
+    let arguments: [String]
+}
+
+private struct InputServiceResponse: Codable {
+    let version: Int
+    let id: String
+    let ok: Bool
+    let output: String?
+    let error: String?
+}
+
+private enum InputService {
+    static let maximumMessageBytes = 65_536
+
+    static func run(socketPath: String) throws -> Never {
+        let parentPath = (socketPath as NSString).deletingLastPathComponent
+        try preparePrivateDirectory(parentPath)
+        try removeStaleSocket(socketPath)
+
+        let server = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        guard server >= 0 else {
+            throw HelperError.invalidArguments("Could not create the native input service socket: \(systemError()).")
+        }
+        defer { Darwin.close(server) }
+
+        var address = sockaddr_un()
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        address.sun_family = sa_family_t(AF_UNIX)
+        let pathBytes = Array(socketPath.utf8) + [0]
+        let pathCapacity = MemoryLayout.size(ofValue: address.sun_path)
+        guard pathBytes.count <= pathCapacity else {
+            throw HelperError.invalidArguments("Native input service socket path is too long.")
+        }
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in
+            buffer.initializeMemory(as: UInt8.self, repeating: 0)
+            buffer.copyBytes(from: pathBytes)
+        }
+
+        let previousMask = umask(0o077)
+        defer { _ = umask(previousMask) }
+        let bindResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
+                Darwin.bind(server, socketAddress, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard bindResult == 0 else {
+            throw HelperError.invalidArguments("Could not bind the native input service socket: \(systemError()).")
+        }
+        guard chmod(socketPath, 0o600) == 0 else {
+            throw HelperError.invalidArguments("Could not protect the native input service socket: \(systemError()).")
+        }
+        guard Darwin.listen(server, 8) == 0 else {
+            throw HelperError.invalidArguments("Could not listen on the native input service socket: \(systemError()).")
+        }
+
+        log(event: "native_input_service_started", details: ["socketPath": socketPath])
+        while true {
+            let connection = Darwin.accept(server, nil, nil)
+            if connection < 0 {
+                if errno == EINTR { continue }
+                throw HelperError.invalidArguments("Native input service accept failed: \(systemError()).")
+            }
+            autoreleasepool {
+                configureTimeouts(connection: connection)
+                handle(connection: connection)
+                Darwin.close(connection)
+            }
+        }
+    }
+
+    private static func handle(connection: Int32) {
+        let response: InputServiceResponse
+        var requestID = "unknown"
+        do {
+            let requestData = try readMessage(connection: connection)
+            let request = try JSONDecoder().decode(InputServiceRequest.self, from: requestData)
+            requestID = request.id
+            try validate(request: request)
+            let outputData = try executeJSONCommand(arguments: request.arguments)
+            response = InputServiceResponse(
+                version: 1,
+                id: request.id,
+                ok: true,
+                output: String(decoding: outputData, as: UTF8.self),
+                error: nil
+            )
+        } catch {
+            response = InputServiceResponse(
+                version: 1,
+                id: requestID,
+                ok: false,
+                output: nil,
+                error: String(describing: error)
+            )
+            log(event: "native_input_service_request_failed", details: [
+                "message": String(describing: error)
+            ])
+        }
+        do {
+            var encoded = try encodeJSON(response, prettyPrinted: false)
+            encoded.append(0x0A)
+            guard encoded.count <= maximumMessageBytes else {
+                throw HelperError.invalidArguments("Native input service response exceeds the size limit.")
+            }
+            try writeAll(encoded, connection: connection)
+        } catch {
+            log(event: "native_input_service_response_failed", details: [
+                "message": String(describing: error)
+            ])
+        }
+    }
+
+    private static func validate(request: InputServiceRequest) throws {
+        guard request.version == 1 else {
+            throw HelperError.invalidArguments("Unsupported native input service protocol version.")
+        }
+        guard request.id.count == 36, UUID(uuidString: request.id) != nil else {
+            throw HelperError.invalidArguments("Native input service request id must be a UUID.")
+        }
+        guard (1...32).contains(request.arguments.count) else {
+            throw HelperError.invalidArguments("Native input service accepts 1 to 32 arguments.")
+        }
+        guard !request.arguments.contains(where: { $0.contains("\0") }) else {
+            throw HelperError.invalidArguments("Native input service arguments cannot contain NUL bytes.")
+        }
+        guard let command = request.arguments.first, !["serve", "self-test"].contains(command) else {
+            throw HelperError.invalidArguments("This command is not available through the native input service.")
+        }
+    }
+
+    private static func readMessage(connection: Int32) throws -> Data {
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4_096)
+        while data.firstIndex(of: 0x0A) == nil {
+            let count = Darwin.read(connection, &buffer, buffer.count)
+            if count == 0 {
+                throw HelperError.invalidArguments("Native input service request ended before a newline.")
+            }
+            if count < 0 {
+                if errno == EINTR { continue }
+                throw HelperError.invalidArguments("Native input service request read failed: \(systemError()).")
+            }
+            data.append(contentsOf: buffer.prefix(Int(count)))
+            if data.count > maximumMessageBytes {
+                throw HelperError.invalidArguments("Native input service request exceeds the size limit.")
+            }
+        }
+        guard let newlineIndex = data.firstIndex(of: 0x0A) else {
+            throw HelperError.invalidArguments("Native input service request is incomplete.")
+        }
+        let trailing = data[data.index(after: newlineIndex)...]
+        guard trailing.allSatisfy({ [0x09, 0x0A, 0x0D, 0x20].contains($0) }) else {
+            throw HelperError.invalidArguments("Native input service accepts one request per connection.")
+        }
+        return Data(data[..<newlineIndex])
+    }
+
+    private static func writeAll(_ data: Data, connection: Int32) throws {
+        try data.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+            var written = 0
+            while written < data.count {
+                let count = Darwin.write(connection, baseAddress.advanced(by: written), data.count - written)
+                if count < 0 {
+                    if errno == EINTR { continue }
+                    throw HelperError.invalidArguments("Native input service response write failed: \(systemError()).")
+                }
+                written += count
+            }
+        }
+    }
+
+    private static func configureTimeouts(connection: Int32) {
+        var timeout = timeval(tv_sec: 20, tv_usec: 0)
+        withUnsafePointer(to: &timeout) { pointer in
+            _ = setsockopt(
+                connection,
+                SOL_SOCKET,
+                SO_RCVTIMEO,
+                pointer,
+                socklen_t(MemoryLayout<timeval>.size)
+            )
+            _ = setsockopt(
+                connection,
+                SOL_SOCKET,
+                SO_SNDTIMEO,
+                pointer,
+                socklen_t(MemoryLayout<timeval>.size)
+            )
+        }
+    }
+
+    private static func preparePrivateDirectory(_ directoryPath: String) throws {
+        try FileManager.default.createDirectory(
+            atPath: directoryPath,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        var directoryInfo = stat()
+        guard lstat(directoryPath, &directoryInfo) == 0,
+              (directoryInfo.st_mode & S_IFMT) == S_IFDIR,
+              directoryInfo.st_uid == getuid(),
+              (directoryInfo.st_mode & 0o077) == 0 else {
+            throw HelperError.invalidArguments(
+                "Native input service directory must be owned by the current user with mode 0700."
+            )
+        }
+    }
+
+    private static func removeStaleSocket(_ socketPath: String) throws {
+        var socketInfo = stat()
+        if lstat(socketPath, &socketInfo) != 0 {
+            if errno == ENOENT { return }
+            throw HelperError.invalidArguments("Could not inspect the native input service socket: \(systemError()).")
+        }
+        guard (socketInfo.st_mode & S_IFMT) == S_IFSOCK, socketInfo.st_uid == getuid() else {
+            throw HelperError.invalidArguments("Refusing to replace a socket path not owned by the current user.")
+        }
+        guard unlink(socketPath) == 0 else {
+            throw HelperError.invalidArguments("Could not remove the stale native input service socket: \(systemError()).")
+        }
+    }
+
+    private static func log(event: String, details: [String: String]) {
+        var payload = details
+        payload["event"] = event
+        payload["timestamp"] = ISO8601DateFormatter().string(from: Date())
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]) {
+            FileHandle.standardError.write(data)
+            FileHandle.standardError.write(Data([0x0A]))
+        }
+    }
+
+    private static func systemError() -> String {
+        String(cString: strerror(errno))
+    }
+}
+
 private func currentPointer() throws -> Point {
     guard let location = CGEvent(source: nil)?.location else {
         throw HelperError.eventCreationFailed("pointer location")
@@ -967,11 +1234,17 @@ private func currentPointer() throws -> Point {
     return Point(x: location.x, y: location.y)
 }
 
-private func printJSON<T: Encodable>(_ value: T) throws {
+private func encodeJSON<T: Encodable>(_ value: T, prettyPrinted: Bool = true) throws -> Data {
     let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    let data = try encoder.encode(value)
-    print(String(decoding: data, as: UTF8.self))
+    encoder.outputFormatting = prettyPrinted
+        ? [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        : [.sortedKeys, .withoutEscapingSlashes]
+    return try encoder.encode(value)
+}
+
+private func writeStandardOutput(_ data: Data) {
+    FileHandle.standardOutput.write(data)
+    FileHandle.standardOutput.write(Data([0x0A]))
 }
 
 private func runSelfTests() throws {
@@ -1056,27 +1329,25 @@ private func clamp<T: Comparable>(_ value: T, lower: T, upper: T) -> T {
     min(max(value, lower), upper)
 }
 
-do {
-    let options = try ArgumentParser.parse(Array(CommandLine.arguments.dropFirst()))
+private func executeJSONCommand(arguments: [String]) throws -> Data {
+    let options = try ArgumentParser.parse(arguments)
     switch options.command {
     case "status":
         let frontmostApplication = NSWorkspace.shared.frontmostApplication
         let frontmostBounds = frontmostApplication.flatMap { application in
             ChromeGuard.frontmostWindowBounds(processIdentifier: application.processIdentifier)
         }
-        try printJSON(StatusResult(
+        return try encodeJSON(StatusResult(
             accessibilityPostEventAccess: CGPreflightPostEventAccess(),
             frontmostBundleIdentifier: frontmostApplication?.bundleIdentifier ?? "unknown",
             frontmostProcessIdentifier: frontmostApplication?.processIdentifier,
             frontmostWindowBounds: frontmostBounds.map(Rectangle.init)
         ))
-    case "self-test":
-        try runSelfTests()
     case "activate-chrome", "activate-browser", "open-url":
         guard let bundleIdentifier = options.bundleIdentifier else {
             throw HelperError.invalidArguments("An allowed browser bundle identifier is required.")
         }
-        try printJSON(BrowserBootstrap.run(
+        return try encodeJSON(BrowserBootstrap.run(
             bundleIdentifier: bundleIdentifier,
             url: options.url
         ))
@@ -1084,14 +1355,14 @@ do {
         guard let processIdentifier = options.processIdentifier else {
             throw HelperError.invalidArguments("A recorded process identifier is required.")
         }
-        try printJSON(ApplicationRestorer.restore(processIdentifier: processIdentifier))
+        return try encodeJSON(ApplicationRestorer.restore(processIdentifier: processIdentifier))
     case "plan", "move", "move-click", "scroll", "type-text":
         guard let target = options.target else {
             throw HelperError.invalidArguments("A target is required.")
         }
         let plan = TrajectoryPlanner.plan(start: try currentPointer(), target: target, seed: options.seed)
         if options.command == "plan" {
-            try printJSON(plan)
+            return try encodeJSON(plan)
         } else {
             let shouldClick = options.command == "move-click" || options.command == "type-text"
             let movement = try MouseEmitter.execute(plan: plan, click: shouldClick)
@@ -1104,7 +1375,7 @@ do {
             let clipboardRestored = options.command == "type-text" && options.text != nil
                 ? try MouseEmitter.pasteText(options.text!, at: target, seed: options.seed)
                 : nil
-            try printJSON(ExecutionResult(
+            return try encodeJSON(ExecutionResult(
                 command: options.command,
                 seed: options.seed,
                 steps: plan.steps.count,
@@ -1124,8 +1395,25 @@ do {
                 clickEmitted: movement.clickEmitted
             ))
         }
+    case "self-test", "serve":
+        throw HelperError.invalidArguments("This command does not return a JSON command result.")
     default:
         throw HelperError.invalidArguments(ArgumentParser.usage)
+    }
+}
+
+do {
+    let arguments = Array(CommandLine.arguments.dropFirst())
+    let options = try ArgumentParser.parse(arguments)
+    if options.command == "self-test" {
+        try runSelfTests()
+    } else if options.command == "serve" {
+        guard let socketPath = options.socketPath else {
+            throw HelperError.invalidArguments("serve requires --socket-path <absolute-path>.")
+        }
+        try InputService.run(socketPath: socketPath)
+    } else {
+        writeStandardOutput(try executeJSONCommand(arguments: arguments))
     }
 } catch {
     fputs("Error: \(error)\n", stderr)

@@ -100,6 +100,44 @@ test("native input driver invokes the helper without a shell", async () => {
   assert.equal(inputCall.options.windowsHide, true);
 });
 
+test("service transport never spawns the helper subprocess", async () => {
+  const calls = [];
+  const serviceClient = {
+    invoke: async (argumentsList) => {
+      calls.push(argumentsList);
+      if (argumentsList[0] === "status") {
+        return {
+          stdout: JSON.stringify({
+            accessibilityPostEventAccess: true,
+            frontmostBundleIdentifier: "com.google.Chrome"
+          }),
+          stderr: ""
+        };
+      }
+      return { stdout: JSON.stringify({ command: argumentsList[0], steps: 24 }), stderr: "" };
+    }
+  };
+  const controller = new NativeInputDriver({
+    projectRoot: "/tmp/browser-operator-kit-native-test",
+    environment: { WEB_AUTOMATION_INPUT_TRANSPORT: "service" },
+    serviceClient,
+    minimumIntervalMs: 0,
+    maximumIntervalMs: 0,
+    runner: async () => assert.fail("service transport must not spawn a subprocess")
+  });
+
+  const result = await controller.execute({
+    type: "scroll",
+    point: { x: 300, y: 500 },
+    deltaY: 720,
+    seed: 9
+  });
+
+  assert.equal(result.action, "scroll");
+  assert.equal(result.before.transport, "service");
+  assert.deepEqual(calls.map((argumentsList) => argumentsList[0]), ["status", "scroll", "status"]);
+});
+
 test("browser bootstrap uses explicit bundle identifiers and encoded URLs", async () => {
   const calls = [];
   const controller = new NativeInputDriver({
