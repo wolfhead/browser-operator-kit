@@ -466,6 +466,47 @@ test("bootstrap web command is idempotent when Page Observer already reports the
   assert.equal(calls.some((call) => call.type === "lease"), false);
 });
 
+test("bootstrap web command opens an allowed URL from a restricted Chrome page", async () => {
+  const calls = [];
+  const searchPage = observation("", true);
+  searchPage.page = "demo.page";
+  let observeCount = 0;
+  const bridge = {
+    async request(command, params) {
+      calls.push({ type: "bridge", command, params });
+      if (command !== "observer.observe") return { ok: true };
+      observeCount += 1;
+      if (observeCount === 1) {
+        throw new Error("Page Observer cannot inspect restricted URL protocol 'chrome:'.");
+      }
+      return searchPage;
+    }
+  };
+  const orchestrator = new CommandOrchestrator({
+    bridge,
+    inputDriver: fakeInputDriver(calls),
+    allowedOpenUrls: ["https://example.test/start"]
+  });
+
+  const report = await orchestrator.executeWorkflow({
+    id: "open-from-internal-page",
+    label: "Open from internal page",
+    browserBundleIdentifier: "com.google.Chrome",
+    commands: [{
+      id: "open-demo-page",
+      expectedResultPage: "demo.page",
+      foregroundPolicy: { activate: "ifNeeded", restore: "previousUnlessHumanTakeover" },
+      action: { type: "openUrl", url: "https://example.test/start" },
+      verificationPolicy: { initialDelayMs: 0, pollIntervalMs: 0, timeoutMs: 1_000, stablePasses: 1 },
+      postconditions: []
+    }]
+  });
+
+  assert.equal(report.ok, true);
+  assert.equal(report.commands[0].page, "demo.page");
+  assert.equal(calls.filter((call) => call.type === "openUrl").length, 1);
+});
+
 test("scrollUntil can emit upward wheel input and verify the top state", async () => {
   const calls = [];
   const before = scrollObservation({ scrollTop: 600, focused: false });

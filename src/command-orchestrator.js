@@ -105,8 +105,17 @@ export class CommandOrchestrator {
       isBootstrap ? "正在准备浏览器前台租约。" : "正在读取页面状态并定位目标。 "
     );
     try {
-      const backgroundObservation = await this.observe();
-      if (isBootstrap && backgroundObservation.page === command.expectedResultPage) {
+      let backgroundObservation = null;
+      try {
+        backgroundObservation = await this.observe();
+      } catch (error) {
+        if (!isBootstrap || !isRestrictedChromeObservationError(error)) throw error;
+        this.logger("info", "bootstrap_restricted_page_observation_skipped", {
+          commandId: command.id,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+      if (isBootstrap && backgroundObservation?.page === command.expectedResultPage) {
         commandResult = {
           ok: true,
           commandId: command.id,
@@ -579,6 +588,12 @@ function normalizeAllowedUrl(value) {
   }
   url.hash = "";
   return url.href;
+}
+
+function isRestrictedChromeObservationError(error) {
+  return /cannot inspect restricted URL protocol 'chrome:'/.test(
+    error instanceof Error ? error.message : String(error)
+  );
 }
 
 function boundedInteger(value, minimum, maximum, fallback) {
