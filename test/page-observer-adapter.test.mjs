@@ -46,3 +46,60 @@ test("Page Observer registers runtime adapters and reports missing optional perm
   assert.equal(observer.unregisterAdapter("ws://127.0.0.1:38493"), true);
   assert.equal((await observer.loadDescriptors()).length, 0);
 });
+
+test("Page Observer captures only a registered page with granted host permission", async (context) => {
+  const previousChrome = globalThis.chrome;
+  const captures = [];
+  globalThis.chrome = {
+    permissions: { contains: async ({ origins }) => origins[0] === "https://example.com/*" },
+    tabs: {
+      query: async () => [{
+        id: 7,
+        windowId: 3,
+        title: "Example",
+        url: "https://example.com/app/candidate"
+      }],
+      captureVisibleTab: async (...argumentsList) => {
+        captures.push(argumentsList);
+        return "data:image/png;base64,dGVzdA==";
+      }
+    }
+  };
+  context.after(() => { globalThis.chrome = previousChrome; });
+
+  const observer = new PageObserver();
+  await observer.registerAdapter("ws://127.0.0.1:38493", registration);
+  const result = await observer.captureVisibleTab();
+
+  assert.equal(result.ok, true);
+  assert.equal(result.tab.url, "https://example.com/app/candidate");
+  assert.deepEqual(result.descriptorIds, ["example-page"]);
+  assert.deepEqual(captures, [[3, { format: "png" }]]);
+});
+
+test("Page Observer refuses screenshot capture outside registered descriptor paths", async (context) => {
+  const previousChrome = globalThis.chrome;
+  let captured = false;
+  globalThis.chrome = {
+    permissions: { contains: async () => true },
+    tabs: {
+      query: async () => [{
+        id: 7,
+        windowId: 3,
+        title: "Other",
+        url: "https://example.com/private"
+      }],
+      captureVisibleTab: async () => {
+        captured = true;
+        return "data:image/png;base64,dGVzdA==";
+      }
+    }
+  };
+  context.after(() => { globalThis.chrome = previousChrome; });
+
+  const observer = new PageObserver();
+  await observer.registerAdapter("ws://127.0.0.1:38493", registration);
+
+  await assert.rejects(() => observer.captureVisibleTab(), /not authorized for unregistered page/);
+  assert.equal(captured, false);
+});

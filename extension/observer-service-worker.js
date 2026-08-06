@@ -66,6 +66,8 @@ async function handleCommand(command, params) {
       return await observer.inspectQuery(params);
     case "observer.inspect.evaluate":
       return await observer.inspectEvaluate(params);
+    case "observer.captureVisibleTab":
+      return await observer.captureVisibleTab();
     case "observer.reload":
       setTimeout(() => chrome.runtime.reload(), 100);
       return { ok: true, scheduled: true };

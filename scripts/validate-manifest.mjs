@@ -24,8 +24,11 @@ for (const required of ["alarms", "scripting", "sidePanel", "storage", "tabs"]) 
 if ((manifest.content_scripts ?? []).length !== 0) {
   errors.push("Page Observer must not inject persistent content scripts or page overlays");
 }
-if (/chrome\.tabs\.(update|create|remove|captureVisibleTab)|chrome\.windows\.update/.test(worker)) {
-  errors.push("Page Observer worker must not navigate, focus, close, or capture page tabs/windows");
+if (/chrome\.tabs\.(update|create|remove)|chrome\.windows\.update/.test(worker)) {
+  errors.push("Page Observer worker must not navigate, focus, or close page tabs/windows");
+}
+if (!worker.includes('case "observer.captureVisibleTab"') || !worker.includes("observer.captureVisibleTab()")) {
+  errors.push("Page Observer worker must expose adapter-guarded visible-tab capture");
 }
 if (/\.click\(|\.focus\(|\.scroll(To|By)?\(|dispatchEvent\(|element\.value\s*=/.test(runtime)) {
   errors.push("Page Observer runtime must not mutate or interact with the observed page");

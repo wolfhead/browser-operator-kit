@@ -204,6 +204,42 @@ export class PageObserver {
     });
   }
 
+  async captureVisibleTab() {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tab?.id || !tab.url || !Number.isInteger(tab.windowId)) {
+      throw new Error("No capturable active Chrome tab is available.");
+    }
+    const url = new URL(tab.url);
+    if (!["http:", "https:"].includes(url.protocol)) {
+      throw new Error(`Screenshot capture cannot access restricted URL protocol '${url.protocol}'.`);
+    }
+    const matchingDescriptors = (await this.loadDescriptors()).filter((descriptor) => matches(descriptor, url));
+    if (matchingDescriptors.length === 0) {
+      throw new Error(`Screenshot capture is not authorized for unregistered page '${url.origin}${url.pathname}'.`);
+    }
+    const requiredHostPermission = `${url.origin}/*`;
+    if (!await chrome.permissions.contains({ origins: [requiredHostPermission] })) {
+      throw new Error(`Screenshot capture requires the active adapter permission '${requiredHostPermission}'.`);
+    }
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+    if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png;base64,")) {
+      throw new Error("Chrome returned an invalid visible-tab screenshot.");
+    }
+    return {
+      ok: true,
+      capturedAt: Date.now(),
+      format: "png",
+      tab: {
+        id: tab.id,
+        windowId: tab.windowId,
+        title: tab.title ?? "",
+        url: tab.url
+      },
+      descriptorIds: matchingDescriptors.map((descriptor) => descriptor.id),
+      dataUrl
+    };
+  }
+
   async runInspector(func, options, execution) {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab?.id || !tab.url) throw new Error("No inspectable active Chrome tab is available.");

@@ -102,6 +102,16 @@ server.registerTool("observer_inspect_evaluate", {
   return resultWithText(result, failures ? `JavaScript completed with ${failures} frame error(s).` : `JavaScript completed in ${result.frames.length} frame(s).`);
 });
 
+server.registerTool("observer_capture_visible_tab", {
+  title: "Capture the visible registered page",
+  description: "Capture a PNG of the active Chrome tab only when its URL matches a registered adapter descriptor and the adapter's host permission is granted.",
+  inputSchema: {},
+  annotations: readOnly
+}, async () => {
+  const result = await bridge.request("observer.captureVisibleTab", {}, 30_000);
+  return resultWithText(result, `Captured the registered page '${result.tab?.url || ""}'.`);
+});
+
 server.registerTool("observer_reload_extension", {
   title: "Reload the Page Observer extension",
   description: "Ask the running extension to reload itself after extension files change. This does not touch the observed page.",
