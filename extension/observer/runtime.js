@@ -128,14 +128,22 @@ export function observeDocument(descriptor) {
   const canvasSignature = (element) => {
     if (!(element instanceof HTMLCanvasElement) || element.width < 1 || element.height < 1) return "";
     try {
-      const context = element.getContext("2d", { willReadFrequently: true });
+      const sampleWidth = Math.min(element.width, 96);
+      const sampleHeight = Math.min(element.height, 96);
+      const sample = document.createElement("canvas");
+      sample.width = sampleWidth;
+      sample.height = sampleHeight;
+      const context = sample.getContext("2d", { willReadFrequently: true });
       if (!context) return "";
-      const pixels = context.getImageData(0, 0, element.width, element.height).data;
-      const stride = Math.max(4, Math.floor(pixels.length / 4_096 / 4) * 4);
+      context.clearRect(0, 0, sampleWidth, sampleHeight);
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(element, 0, 0, sampleWidth, sampleHeight);
+      const pixels = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
       let first = 2_166_136_261;
       let second = 3_335_555_777;
       let meaningful = 0;
-      for (let index = 0; index < pixels.length; index += stride) {
+      for (let index = 0; index < pixels.length; index += 4) {
         const red = pixels[index] || 0;
         const green = pixels[index + 1] || 0;
         const blue = pixels[index + 2] || 0;
@@ -146,7 +154,7 @@ export function observeDocument(descriptor) {
           second = Math.imul(second + component + (second << 6) + (second << 16) - second, 1);
         }
       }
-      if (meaningful < 8) return "";
+      if (meaningful < 2) return "";
       return `${element.width}x${element.height}:${(first >>> 0).toString(16).padStart(8, "0")}${(second >>> 0).toString(16).padStart(8, "0")}`;
     } catch {
       return "";
