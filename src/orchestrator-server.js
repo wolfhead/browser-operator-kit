@@ -99,6 +99,9 @@ const command = z.object({
   id: z.string().min(1).max(120),
   expectedPage: z.string().min(1).max(160).optional(),
   expectedResultPage: z.string().min(1).max(160).optional(),
+  expectedResultPages: z.array(z.string().min(1).max(160)).min(1).max(10)
+    .refine((pages) => new Set(pages).size === pages.length, "expectedResultPages must contain unique page names.")
+    .optional(),
   foregroundPolicy: z.object({
     activate: z.enum(["ifNeeded", "never"]).default("ifNeeded"),
     restore: z.literal("previousUnlessHumanTakeover").default("previousUnlessHumanTakeover")
@@ -113,11 +116,17 @@ const command = z.object({
   readinessPolicy: readinessPolicy.optional(),
   postconditions: z.array(assertion).max(20).default([])
 }).superRefine((value, context) => {
+  if (value.expectedResultPage && value.expectedResultPages) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Commands cannot declare both expectedResultPage and expectedResultPages."
+    });
+  }
   if (value.action.type === "openUrl") {
-    if (!value.expectedResultPage || value.expectedPage || value.target || value.preconditions.length > 0) {
+    if (!value.expectedResultPage || value.expectedResultPages || value.expectedPage || value.target || value.preconditions.length > 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "openUrl requires expectedResultPage and cannot declare expectedPage, target, or preconditions."
+        message: "openUrl requires one expectedResultPage and cannot declare expectedResultPages, expectedPage, target, or preconditions."
       });
     }
     return;

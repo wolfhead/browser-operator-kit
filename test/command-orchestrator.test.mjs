@@ -154,6 +154,33 @@ test("web command treats the previous page as transient while navigation complet
   assert.equal(report.ok, true);
 });
 
+test("web command accepts any registered result page from an explicit set", async () => {
+  const calls = [];
+  const overlay = observation("", true);
+  overlay.page = "purchase-popup";
+  const resume = observation("", true);
+  resume.page = "resume";
+  const orchestrator = new CommandOrchestrator({
+    bridge: fakeBridge([overlay, overlay, resume], calls),
+    inputDriver: fakeInputDriver(calls),
+    postconditionDelayMs: 0
+  });
+  const report = await orchestrator.executeWorkflow({
+    id: "dismiss-overlay",
+    label: "Dismiss overlay",
+    browserBundleIdentifier: "com.google.Chrome",
+    commands: [{
+      id: "dismiss",
+      expectedPage: "purchase-popup",
+      expectedResultPages: ["search", "resume"],
+      target: { scope: "fields", name: "query" },
+      action: { type: "click" }
+    }]
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.commands[0].page, "resume");
+});
+
 test("web command applies per-command initial and polling delays", async () => {
   const calls = [];
   const delays = [];

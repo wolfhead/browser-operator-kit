@@ -329,7 +329,9 @@ export class CommandOrchestrator {
   }
 
   async waitForPostconditions(command, baselineObservation) {
-    const expectedResultPage = command.expectedResultPage || command.expectedPage;
+    const expectedResultPages = command.expectedResultPages?.length > 0
+      ? command.expectedResultPages
+      : [command.expectedResultPage || command.expectedPage];
     const policy = normalizeVerificationPolicy(command.verificationPolicy, {
       attempts: this.postconditionAttempts,
       pollIntervalMs: this.postconditionDelayMs
@@ -343,20 +345,20 @@ export class CommandOrchestrator {
         await this.sleep(policy.pollIntervalMs);
       }
       lastObservation = await this.observe();
-      if (lastObservation.page !== expectedResultPage) {
-        if (expectedResultPage !== command.expectedPage && lastObservation.page === command.expectedPage) {
+      if (!expectedResultPages.includes(lastObservation.page)) {
+        if (!expectedResultPages.includes(command.expectedPage) && lastObservation.page === command.expectedPage) {
           stablePasses = 0;
           lastError = new WebCommandError(
             "POSTCONDITION_FAILED",
             "postcondition",
-            `Result page '${expectedResultPage}' is still pending; current page remains '${command.expectedPage}'.`
+            `Result page is still pending; current page remains '${command.expectedPage}', expected one of ${formatExpectedPages(expectedResultPages)}.`
           );
           continue;
         }
         throw new WebCommandError(
           "POSTCONDITION_FAILED",
           "postcondition",
-          `Expected result page '${expectedResultPage}', observed '${lastObservation.page}'.`
+          `Expected result page to be one of ${formatExpectedPages(expectedResultPages)}, observed '${lastObservation.page}'.`
         );
       }
       try {
@@ -467,9 +469,19 @@ function validateWorkflow(workflow) {
     if (!command.id || !command.action?.type) {
       throw new Error("Every web command requires id and action.");
     }
+    if (command.expectedResultPage && command.expectedResultPages) {
+      throw new Error("Commands cannot declare both expectedResultPage and expectedResultPages.");
+    }
+    if (command.expectedResultPages && (
+      !Array.isArray(command.expectedResultPages) ||
+      command.expectedResultPages.length === 0 ||
+      new Set(command.expectedResultPages).size !== command.expectedResultPages.length
+    )) {
+      throw new Error("expectedResultPages must be a non-empty set of unique page names.");
+    }
     if (command.action.type === "openUrl") {
-      if (!command.expectedResultPage || command.expectedPage || command.target || (command.preconditions || []).length > 0) {
-        throw new Error("openUrl requires only expectedResultPage and cannot declare expectedPage, target, or preconditions.");
+      if (!command.expectedResultPage || command.expectedResultPages || command.expectedPage || command.target || (command.preconditions || []).length > 0) {
+        throw new Error("openUrl requires only one expectedResultPage and cannot declare expectedResultPages, expectedPage, target, or preconditions.");
       }
       continue;
     }
@@ -477,6 +489,10 @@ function validateWorkflow(workflow) {
       throw new Error("Interactive web commands require expectedPage and target.");
     }
   }
+}
+
+function formatExpectedPages(pages) {
+  return `[${pages.map((page) => `'${page}'`).join(", ")}]`;
 }
 
 function getRegisteredTarget(observation, target, throwWhenMissing = true) {

@@ -31,7 +31,7 @@ The service accepts one bounded, versioned JSON request per connection and retur
 7. Re-resolve the target and validate observation freshness/window bounds.
 8. Execute one native action.
 9. Poll fresh Page Observer results using the command's verification policy.
-10. Require the result page and postconditions.
+10. Require the result page and postconditions. A command may declare one `expectedResultPage`, or an `expectedResultPages` set when an overlay can safely reveal more than one registered underlying page; the two forms are mutually exclusive.
 11. Restore the previous application unless another person or app took over.
 
 An `openUrl` bootstrap is targetless but still requires an exact runtime allowlist entry, a declared result page, a foreground lease, and final Page Observer verification.

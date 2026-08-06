@@ -16,7 +16,7 @@ The extension also acts as a visible status board. It shows the detected page, r
 
 ## Why the split matters
 
-Page Observer never clicks, types, scrolls, changes focus, or claims that an action succeeded. Native Input Driver knows nothing about the page DOM; it can raise the unique browser window matching the title and bounds supplied by a fresh observation before guarded input. Command Orchestrator joins them through an Observe → Act → Verify command with an expected page, preconditions, a registered target, a foreground policy, one action, and postconditions. The browser is foregrounded only for the native action and verification window, then the previous application is restored unless another person or application has taken over.
+Page Observer never clicks, types, scrolls, changes focus, or claims that an action succeeded. Native Input Driver knows nothing about the page DOM; it can raise the unique browser window matching the title and bounds supplied by a fresh observation before guarded input. Command Orchestrator joins them through an Observe → Act → Verify command with an expected page, preconditions, a registered target, a foreground policy, one action, and postconditions. A command can accept one `expectedResultPage` or a bounded `expectedResultPages` set for actions such as closing an overlay that may reveal one of several registered underlying pages. The browser is foregrounded only for the native action and verification window, then the previous application is restored unless another person or application has taken over.
 
 ## Requirements
 
