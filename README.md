@@ -132,6 +132,8 @@ Page Observer results include the Chrome window and viewport geometry needed to 
 
 The read-only `observer_capture_visible_tab` tool captures the active tab as PNG only when its URL matches a currently registered descriptor, the Adapter's optional host permission is granted, and Chrome's `activeTab` grant is present. The user grants `activeTab` by clicking the extension action on that tab; it is intentionally narrower than persistent `<all_urls>` access. The generic extension does not persist screenshots; a site-specific controller may store the returned image as a local diagnostic artifact.
 
+Chrome versions or unattended deployments that do not retain `activeTab` for delayed background capture may explicitly build an elevated artifact with `--host-permission '<all_urls>'`. This affects only Chrome's screenshot API prerequisite: the runtime still refuses capture unless the active URL matches a registered descriptor and its Adapter permission is granted. The default public build does not include `<all_urls>`.
+
 ## Named operations
 
 Operation catalogs turn business-neutral semantic names into reusable guarded commands. An operation may be:

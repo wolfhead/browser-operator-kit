@@ -108,6 +108,7 @@ async function getStatus() {
   ]);
   return {
     ok: true,
+    manifestPermissions: [...(chrome.runtime.getManifest().permissions || [])],
     bridges: BRIDGE_URLS.map((url) => ({
       url,
       connected: bridgeConnections.get(url)?.socket?.readyState === WebSocket.OPEN

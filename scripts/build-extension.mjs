@@ -56,8 +56,8 @@ function validateBridgeUrl(value) {
 }
 
 function validateHostPermission(value) {
-  if (!/^https?:\/\/[^/]+\/\*$/.test(value)) {
-    throw new Error(`Host permission '${value}' must be an exact http/https match pattern.`);
+  if (value !== "<all_urls>" && !/^https?:\/\/[^/]+\/\*$/.test(value)) {
+    throw new Error(`Host permission '${value}' must be '<all_urls>' or an exact http/https match pattern.`);
   }
 }
 

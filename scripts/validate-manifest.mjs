@@ -39,8 +39,11 @@ for (const required of ["http://*/*", "https://*/*"]) {
   if (!optionalHostPermissions.has(required)) errors.push(`missing optional site permission: ${required}`);
 }
 for (const permission of manifest.host_permissions ?? []) {
-  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/\*$/.test(permission)) {
-    errors.push(`the generic extension may only have persistent loopback host permission: ${permission}`);
+  if (
+    permission !== "<all_urls>" &&
+    !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/\*$/.test(permission)
+  ) {
+    errors.push(`the generic extension may only have persistent loopback permissions or the explicit screenshot prerequisite '<all_urls>': ${permission}`);
   }
 }
 for (const relativePath of ["observer/descriptor-schema.json", manifest.side_panel?.default_path]) {
