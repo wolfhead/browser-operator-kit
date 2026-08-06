@@ -18,7 +18,7 @@ const permissions = new Set(manifest.permissions ?? []);
 for (const forbidden of ["debugger", "nativeMessaging", "offscreen"]) {
   if (permissions.has(forbidden)) errors.push(`forbidden Page Observer permission: ${forbidden}`);
 }
-for (const required of ["alarms", "scripting", "sidePanel", "storage", "tabs"]) {
+for (const required of ["activeTab", "alarms", "scripting", "sidePanel", "storage", "tabs"]) {
   if (!permissions.has(required)) errors.push(`missing Page Observer permission: ${required}`);
 }
 if ((manifest.content_scripts ?? []).length !== 0) {

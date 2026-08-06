@@ -130,7 +130,7 @@ Text locators may set `"unique": true` when an action must fail safely unless ex
 
 Page Observer results include the Chrome window and viewport geometry needed to convert page coordinates into native screen points. Inspector tools can also return bounded DOM snapshots, query CSS/XPath/text selectors, and explicitly execute JavaScript for adapter development. JavaScript execution is intentionally powerful and is exposed as a mutating, open-world Inspector action.
 
-The read-only `observer_capture_visible_tab` tool captures the active tab as PNG only when its URL matches a currently registered descriptor and the Adapter's optional host permission is granted. The generic extension does not persist screenshots; a site-specific controller may store the returned image as a local diagnostic artifact.
+The read-only `observer_capture_visible_tab` tool captures the active tab as PNG only when its URL matches a currently registered descriptor, the Adapter's optional host permission is granted, and Chrome's `activeTab` grant is present. The user grants `activeTab` by clicking the extension action on that tab; it is intentionally narrower than persistent `<all_urls>` access. The generic extension does not persist screenshots; a site-specific controller may store the returned image as a local diagnostic artifact.
 
 ## Named operations
 
@@ -212,7 +212,7 @@ Configure `WEB_AUTOMATION_OPERATION_DIRS` and `WEB_AUTOMATION_ALLOWED_OPEN_URLS`
 
 - No Chrome `debugger`, `nativeMessaging`, `offscreen`, or persistent content-script permission.
 - No persistent site permission in the installable generic extension; Adapter origins are optional and user-granted.
-- Visible-tab screenshots are refused unless the active URL matches a registered descriptor and its Adapter origin is currently authorized.
+- Visible-tab screenshots are refused unless the active URL matches a registered descriptor, its Adapter origin is currently authorized, and the current tab has Chrome's user-initiated `activeTab` grant.
 - Page Observer runtime is checked for page interaction primitives.
 - Native Input Driver validates Accessibility access, the frontmost bundle, window bounds, observation freshness, and action bounds.
 - Native text is passed as Base64 argv data without shell interpolation.
